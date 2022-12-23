@@ -28,7 +28,7 @@
 #define RC_STHEXT_REDO_STRICT_TYPES
 #endif //int
 
-#include <stdarg.h>
+#include <linux/stdarg.h>
 
 #ifdef RC_STHEXT_REDO_STRICT_TYPES
 #define int Cannot_USE_int_because_it_is_ambiguous
@@ -363,7 +363,7 @@ typedef struct rc_send_arg_s {
 			//
 			//    Sent to STH from driver
 			//
-			void *controller_handle;            
+			void *controller_handle;
 		} interrupt_call __attribute__ ((aligned(8)));
 		struct {
 			struct rc_srb_s *srb;
@@ -376,7 +376,7 @@ typedef struct rc_send_arg_s {
 		rc_mem_op_resp_t mem_op_resp __attribute__ ((aligned(8)));
 		rc_uint32_t    max_print_severity __attribute__ ((aligned(8)));
         void *adapterMemory __attribute__ ((aligned(8)));
-        rc_scsi_info_t rc_scsi_info __attribute__ ((aligned(8))); 
+        rc_scsi_info_t rc_scsi_info __attribute__ ((aligned(8)));
 	} u;
 } rc_send_arg_t;
 
@@ -524,7 +524,7 @@ typedef struct rc_interface_s {
     rc_function_t *send_function;
 	struct rc_send_arg_s *send_arg;
     void *check_interrupt_arg;
-    
+
 
 	rc_function_t *receive_function;
     rc_function_t *schedule_dpc_function;

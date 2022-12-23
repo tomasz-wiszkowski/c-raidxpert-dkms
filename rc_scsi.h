@@ -95,6 +95,12 @@ typedef struct inq_cmd {
   uint8_t ctrl;
 } inq_cmd_t;
 
+/*
+ * private data.
+ */
+struct rc_scsi_cmd {
+  rc_srb_t* srb;
+};
 
 /*
  * SCSI inquiry data

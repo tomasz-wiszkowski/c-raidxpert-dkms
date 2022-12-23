@@ -56,7 +56,7 @@ extern const char *RC_DRIVER_BUILD_DATE;
 //#define RC_SUPPORT_V60_DRIVERS_ON_INTEL_PLATFORMS
 //#define RC_SUPPORT_V60_DRIVERS_ON_HUDSON_PLATFORMS
 
-// FIXME: some older kernels still supported by RAIDCore do not have 
+// FIXME: some older kernels still supported by RAIDCore do not have
 //        DMA_BIT_MASK().  Remove once support for them has been dropped.
 #ifndef DMA_BIT_MASK
 #define DMA_BIT_MASK(n) (((n) == 64) ? ~0ULL : ((1ULL<<(n))-1))
@@ -90,7 +90,7 @@ MODULE_PARM (tag_q_depth, "i");
 #endif
 MODULE_PARM_DESC (tag_q_depth, "individual tagged command queue depth");
 
-static int max_xfer = 2048; // AHCI PRD limit is 224K or 448 sectors 
+static int max_xfer = 2048; // AHCI PRD limit is 224K or 448 sectors
 #ifdef module_param_named
 module_param_named(max_xfer, max_xfer, int, 0444);
 #else
@@ -195,8 +195,8 @@ static int  rc_slave_cfg(struct scsi_device *sdev);
 int         rc_bios_params(struct scsi_device *sdev, struct block_device *bdev,
 			   sector_t capacity, int geom[]);
 
-int         rc_queue_cmd_lck(struct scsi_cmnd * scp, void (*CompletionRoutine) (struct scsi_cmnd *));
-			 
+int rc_queue_cmd_lck (struct scsi_cmnd * scp);
+
 #ifdef RC_AHCI_SUPPORT
 // Additions for AHCI driver
 static inline void rc_ahci_disable_irq(rc_adapter_t *adapter);
@@ -316,7 +316,7 @@ static struct pci_device_id rcraid_id_tbl[] = {
 		.class = 0,
 		.class_mask = 0,
 		.driver_data = (unsigned long)&rc_ahci_version
-	},    
+	},
 #endif // RC_AHCI_SUPPORT
 
 	{0,}
@@ -330,6 +330,10 @@ typedef struct rc_bios_disk_parameters
 } rc_bios_disk_parameters_t;
 
 static DEF_SCSI_QCMD(rc_queue_cmd)
+static inline struct rc_scsi_cmd* rc_scsi_pointer(struct scsi_cmnd *cmd) {
+  return scsi_cmd_priv(cmd);
+}
+
 
 static Scsi_Host_Template driver_template = {
 	.module =                  THIS_MODULE,
@@ -337,7 +341,7 @@ static Scsi_Host_Template driver_template = {
 	.proc_name =               RC_DRIVER_NAME,
 	.proc_dir =                NULL,
 	.info =                    rc_info,
-	.ioctl =                   rc_ioctl,    
+	.ioctl =                   rc_ioctl,
 	.queuecommand =            rc_queue_cmd,
 	.bios_param =              rc_bios_params,
 	.can_queue =               1,
@@ -353,6 +357,7 @@ static Scsi_Host_Template driver_template = {
 #else
 #endif	/* (5,0,0) */
 	.slave_configure =         rc_slave_cfg,
+  .cmd_size = sizeof(struct rc_scsi_cmd),
 };
 
 //
@@ -408,7 +413,7 @@ rc_init_module(void)
 	extern char       *rc_ident;
 
 	rc_printk(RC_NOTE, "%s %s raid driver version %s build_number %s built "
-		  "%s\n", VER_COMPANYNAME_STR, RC_DRIVER_NAME, 
+		  "%s\n", VER_COMPANYNAME_STR, RC_DRIVER_NAME,
                   RC_DRIVER_VERSION, RC_BUILD_NUMBER, RC_DRIVER_BUILD_DATE);
 	rc_printk(RC_NOTE, "%s %s\n", RC_DRIVER_NAME, rc_ident);
 
@@ -458,7 +463,7 @@ rc_init_module(void)
 	use_swl |= RC_SHWL_TYPE_CARD; // always support cards
 
 	rc_printk(RC_NOTE, "rcraid: cmd_q_depth %d, tag_q_depth %d, max_xfer "
-                  "%d, use_swl 0x%x\n", cmd_q_depth, tag_q_depth, max_xfer, 
+                  "%d, use_swl 0x%x\n", cmd_q_depth, tag_q_depth, max_xfer,
                   use_swl);
 
 	rc_msg_level += debug;
@@ -475,7 +480,7 @@ rc_init_module(void)
 	RC_EnableDIPM = RCRAID_DEFAULT_DIPM;
 	RC_EnableHIPM = RCRAID_DEFAULT_HIPM;
     RC_EnableAN = RCRAID_DEFAULT_AN;
-    RC_EnableNCQ = RCRAID_DEFAULT_NCQ;    
+    RC_EnableNCQ = RCRAID_DEFAULT_NCQ;
     RC_EnableZPODD = RCRAID_DEFAULT_ZPODD;
 
     // Setup ACPI work handler
@@ -606,12 +611,12 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	/*
 	 * set dma_mask to 64 bit capabilities but if that fails, try 32 bit
 	 */
-	if (!pci_set_dma_mask(dev, DMA_BIT_MASK(64)) &&
-	    !pci_set_consistent_dma_mask(dev, DMA_BIT_MASK(64))) {
+	if (!dma_set_mask(&dev->dev, DMA_BIT_MASK(64)) &&
+	    !dma_set_coherent_mask(&dev->dev, DMA_BIT_MASK(64))) {
 		rc_printk(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA enabled\n",
 			  __FUNCTION__);
-	} else if (!pci_set_dma_mask(dev, DMA_BIT_MASK(32)) &&
-		   !pci_set_consistent_dma_mask(dev, DMA_BIT_MASK(32))) {
+	} else if (!dma_set_mask(&dev->dev, DMA_BIT_MASK(32)) &&
+		   !dma_set_coherent_mask(&dev->dev, DMA_BIT_MASK(32))) {
 		rc_printk(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA disabled\n",
 			  __FUNCTION__);
 	} else {
@@ -934,13 +939,13 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 							   probe_id->subvendor,
 							   probe_id->subdevice,
 							   probe_dev))) {
-				
-				
+
+
 				if (probe_id->vendor == PCI_ANY_ID) {
 					if (probe_id->class != probe_dev->class) {
 						//rc_printk(RC_NOTE, "%s: not rcraid device vendor = 0x%x device 0x%x, class 0x%x\n", __FUNCTION__, probe_dev->vendor,probe_dev->device,probe_dev->class);
 						continue;
-					} 
+					}
 				}
 
 				rc_printk(RC_NOTE, "%s: matched supported adapter - vendor = 0x%x device 0x%x\n", __FUNCTION__,
@@ -976,7 +981,7 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	if ((adapter_count && rc_adapter_count == rc_state.num_hba) ||
         (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
 		int err;
-        
+
 		err = rc_init_host(dev);
 		if (!err) {
 			if (misc_register(&rccfg_api_dev))
@@ -1001,7 +1006,7 @@ rc_shutdown_host(struct Scsi_Host *host_ptr)
 {
 	if ((rc_state.state & USE_OSIC) == 0) return;
 
-	
+
 	rc_state.state |= SHUTDOWN;
 
 	rc_printk(RC_DEBUG, "rc_shutdown_host\n" );
@@ -1052,7 +1057,7 @@ rc_shutdown_adapter(rc_adapter_t *adapter)
 	rc_printk(RC_DEBUG, "%s: free private_mem 0x%px\n",
 		  __FUNCTION__, adapter->private_mem.vaddr);
 	if (adapter->private_mem.vaddr)  {
-		pci_free_consistent(adapter->pdev,
+		dma_free_coherent(&adapter->pdev->dev,
 				    rc_state.memsize_per_controller,
 				    adapter->private_mem.vaddr,
 				    adapter->private_mem.dma_address);
@@ -1068,7 +1073,7 @@ void rc_stop_all_threads(void);
 void rc_start_all_threads(void);
 void rc_msg_suspend_work(rc_adapter_t *adapter);
 void rc_msg_init_tasklets(rc_softstate_t *state);
-void rc_msg_kill_tasklets(rc_softstate_t *state);  
+void rc_msg_kill_tasklets(rc_softstate_t *state);
 void rc_msg_suspend(rc_softstate_t *state, rc_adapter_t* adapter);
 void rc_msg_free_all_dma_memory(rc_adapter_t   *adapter);
 
@@ -1082,7 +1087,7 @@ void rc_msg_free_all_dma_memory(rc_adapter_t   *adapter);
  */
 static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
 {
-    
+
     rc_softstate_t  *state;
     rc_adapter_t	*adapter;
     int             i;
@@ -1096,7 +1101,7 @@ static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
     //
     // Looks like a race condition somewhere... this delay
     // seems to solve the issue with suspend/hibernate cycles.
-    // Placement of the delay seems to matter -- after 
+    // Placement of the delay seems to matter -- after
     // scsi_block_requests() doesn't work...
     //
     msleep(rc_suspend_delay);
@@ -1129,12 +1134,12 @@ static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
     //
 
     state = &rc_state;
-    
+
     rc_printk(RC_NOTE, RC_DRIVER_NAME ": suspend pdev %px\n",
         pdev);
-    
+
     pdev->dev.power.power_state = mesg;
-    
+
     rc_printk(RC_ERROR, "%s: event=%d \n",__FUNCTION__, mesg.event);
 
     //
@@ -1159,7 +1164,7 @@ static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
     for (i = rc_state.num_hba -1; i > 0; i--)
     {
         adapter = rc_dev[i];
-        
+
         pci_save_state(adapter->pdev);
 
         pci_disable_device(adapter->pdev);
@@ -1185,7 +1190,7 @@ static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
 	pci_disable_device(pdev);
 
 	pci_set_power_state(pdev, pci_choose_state(pdev, mesg));
-    
+
     state->adapter_is_suspended |= (1 << adapter->instance);
 
     return 0;
@@ -1230,7 +1235,7 @@ static int rcraid_resume_one(struct pci_dev *pdev)
     // If we made it here then we're the master adapter/controller
     //
 
-    state = &rc_state;    
+    state = &rc_state;
 
     //
     // Bring up the slave controllers first
@@ -1289,7 +1294,7 @@ static int rcraid_resume_one(struct pci_dev *pdev)
     {
 		(*adapter->version->start_func)(adapter);
     }
-    
+
     rc_msg_init_tasklets(state);
 
     rc_start_all_threads();
@@ -1329,7 +1334,7 @@ rcraid_shutdown_one(
 
 #ifdef RC_AHCI_SUPPORT
 #define ICH6_REG_OFFSET_GHC     0x04    // Global HBA Control register
-#define AHCI_GHC_IE             (1 << 1)  // global IRQ enable 
+#define AHCI_GHC_IE             (1 << 1)  // global IRQ enable
 /*
  * disable HW interrupts on all ports on an adapter
  */
@@ -1499,14 +1504,13 @@ irqreturn_t rc_nvme_isr(int irq, void *arg, struct pt_regs *regs)
  */
 
 
-int rc_queue_cmd_lck (struct scsi_cmnd * scp, void (*CompletionRoutine) (struct scsi_cmnd *))
+int rc_queue_cmd_lck (struct scsi_cmnd * scp)
 {
-	scp->scsi_done = CompletionRoutine;
 	//#define FAIL_ALL_IO 0
 
 #ifdef FAIL_ALL_IO
 	scp->result = DID_NO_CONNECT << 16;
-	scp->scsi_done(scp);
+	scsi_done(scp);
 	return 0;
 #endif
 
@@ -1517,7 +1521,7 @@ int rc_queue_cmd_lck (struct scsi_cmnd * scp, void (*CompletionRoutine) (struct 
 
     // If we are suspended(controller is not restarted) block any IO from coming in
     if (  (rc_state.is_suspended == 1) || ( (rc_state.state & SHUTDOWN) == SHUTDOWN) ) {
-        return SCSI_MLQUEUE_DEVICE_BUSY; 
+        return SCSI_MLQUEUE_DEVICE_BUSY;
     }
 
 	return(rc_msg_send_srb(scp));
@@ -1537,13 +1541,13 @@ rc_eh_abort_cmd (struct scsi_cmnd * scp)
 		  scp, scp->device->channel, scp->device->id);
 	// rc_config_debug = 1;
 
-	srb = (rc_srb_t *)scp->SCp.ptr;
+  srb = rc_scsi_pointer(scp)->srb;
 	if (srb != NULL) {
 		rc_printk(RC_DEBUG, "\tsrb: 0x%px seq_num %d function %x status %x "
 			  "flags %x b/t/l %d/%d/%d\n", srb, srb->seq_num, srb->function,
 			  srb->status, srb->flags, srb->bus, srb->target, srb->lun);
 		srb->scsi_context = NULL;
-		scp->SCp.ptr = NULL;
+    rc_scsi_pointer(scp)->srb = NULL;
 	} else {
 		rc_printk(RC_WARN, "rc_eh_abort_cmd: srb already completed\n");
 		// most likely here because we already processed srb
@@ -1679,7 +1683,7 @@ static const struct proc_ops rc_proc_dipm_fops = {
 	.proc_open	= rc_proc_dipm_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_dipm, 
+	.proc_write	= rc_proc_write_dipm,
 	.proc_release	= single_release,
 };
 #endif
@@ -1722,7 +1726,7 @@ static const struct proc_ops rc_proc_hipm_fops = {
 	.proc_open	= rc_proc_hipm_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_hipm, 
+	.proc_write	= rc_proc_write_hipm,
 	.proc_release	= single_release,
 };
 #endif
@@ -1756,7 +1760,7 @@ rc_proc_write_debug(struct file *file, const char __user *buffer,
 static int
 rc_proc_debug_show(struct seq_file *sfile, void *v)
 {
-    seq_printf(sfile, "%d %d %d\n", rc_msg_level, RC_PANIC, RC_TAIL - 1); 
+    seq_printf(sfile, "%d %d %d\n", rc_msg_level, RC_PANIC, RC_TAIL - 1);
     return 0;
 }
 
@@ -1780,7 +1784,7 @@ static const struct proc_ops rc_proc_debug_fops = {
 	.proc_open	= rc_proc_debug_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_debug, 
+	.proc_write	= rc_proc_write_debug,
 	.proc_release	= single_release,
 };
 #endif
@@ -1801,7 +1805,7 @@ rc_proc_write_an(struct file *file, const char __user *buffer,
     if (num >= 0 && num < 0xFFFFFFFF)
     {
         rc_send_arg_t   args;
-        
+
         RC_EnableAN = num;
         memset(&args, 0, sizeof(args));
         args.call_type = RC_CTS_CHANGE_PARAM;
@@ -1832,7 +1836,7 @@ static const struct proc_ops rc_proc_an_fops = {
 	.proc_open	= rc_proc_an_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_an, 
+	.proc_write	= rc_proc_write_an,
 	.proc_release	= single_release,
 };
 #endif
@@ -1853,7 +1857,7 @@ rc_proc_write_zpodd(struct file *file, const char __user *buffer,
     if (num >= 0 && num <= 1)
     {
         rc_send_arg_t   args;
-        
+
         //RC_EnableZPODD = num;
         memset(&args, 0, sizeof(args));
         args.call_type = RC_CTS_CHANGE_PARAM;
@@ -1885,7 +1889,7 @@ static const struct proc_ops rc_proc_zpodd_fops = {
 	.proc_open	= rc_proc_zpodd_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_zpodd, 
+	.proc_write	= rc_proc_write_zpodd,
 	.proc_release	= single_release,
 };
 #endif
@@ -1927,7 +1931,7 @@ static const struct proc_ops rc_proc_delay_fops = {
 	.proc_open	= rc_proc_delay_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
-	.proc_write	= rc_proc_write_delay, 
+	.proc_write	= rc_proc_write_delay,
 	.proc_release	= single_release,
 };
 #endif
@@ -1970,7 +1974,7 @@ rc_proc_stats_show(struct seq_file *sfile, void *v)
     char *kbuf;
 
     kbuf = kmalloc(8192, GFP_KERNEL);
-    
+
     if (kbuf)
     {
 	    int	ret;
@@ -2036,7 +2040,7 @@ void rc_init_proc(void)
     if (proc_parent == NULL)
     {
         proc_parent = proc_mkdir("rcraid", NULL);
-    
+
         if (proc_parent)
         {
             const struct rc_proc_entry    *rpe = rc_proc_entries;
@@ -2383,7 +2387,7 @@ rc_dump_scp(struct scsi_cmnd * scp)
 static int rc_notify_reboot(struct notifier_block *this, unsigned long code,
 			    void *x)
 {
-	if ((code == SYS_DOWN) || (code == SYS_HALT) || (code == SYS_POWER_OFF)) 
+	if ((code == SYS_DOWN) || (code == SYS_HALT) || (code == SYS_POWER_OFF))
 		printk(KERN_INFO "%s: stopping all RAIDCore (tm) devices.\n", __FUNCTION__);
 	return NOTIFY_DONE;
 }
@@ -2490,21 +2494,21 @@ static struct ctl_table rcraid_table[] = {
 	  .maxlen	= sizeof(unsigned int),
 	  .mode		= 0644,
 	  .proc_handler	= &proc_dointvec
-	},     
+	},
     {
       .procname = "zpodd",
       .data     = &RC_EnableZPODD,
 	  .maxlen	= sizeof(unsigned int),
 	  .mode		= 0644,
 	  .proc_handler	= &proc_dointvec
-	},     
+	},
     {
       .procname = "suspend_delay",
       .data     = &rc_suspend_delay,
 	  .maxlen	= sizeof(unsigned int),
 	  .mode		= 0644,
 	  .proc_handler	= &proc_dointvec
-	},     
+	},
     {
       .procname = "version",
       .data     = version_string,
