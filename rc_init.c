@@ -98,15 +98,6 @@ MODULE_PARM (max_xfer, "i");
 #endif
 MODULE_PARM_DESC (max_xfer, "max sectors per transfer");
 
-// Default is to use all supported motherboard chip sets and adapter cards.
-static int use_swl = RC_SHWL_TYPE_ALL;
-#ifdef module_param_named
-module_param_named(use_swl, use_swl, int, 0444);
-#else
-MODULE_PARM (use_swl, "i");
-#endif
-MODULE_PARM_DESC (use_swl, "Specify SWL chipsets");
-
 // Set the number of adapters for spanning. Issues with "hot insert"
 // so force this to be passed every time...
 static int rc_adapter_count = 999;      // Bogus value
@@ -460,11 +451,8 @@ rc_init_module(void)
 	if (max_xfer < 8)
 		max_xfer = 8;
 
-	use_swl |= RC_SHWL_TYPE_CARD; // always support cards
-
 	rc_printk(RC_NOTE, "rcraid: cmd_q_depth %d, tag_q_depth %d, max_xfer "
-			"%d, use_swl 0x%x\n", cmd_q_depth, tag_q_depth, max_xfer,
-			use_swl);
+			"%d\n", cmd_q_depth, tag_q_depth, max_xfer);
 
 	rc_msg_level += debug;
 	if (rc_msg_level < 0)
@@ -955,19 +943,14 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 
 
 				/* Found an adapter */
-				if (use_swl &
-				    ((rc_version_t *)probe_id->driver_data)->swl_type) {
-					adapter_count++;
-				}
+				adapter_count++;
 			}
 		}
 		rc_printk(RC_NOTE, "%s: Total adapters matched %u\n", __FUNCTION__,
 		    adapter_count);
 	}
 
-	if (use_swl & ((rc_version_t *)id->driver_data)->swl_type) {
-		ret = rc_init_adapter(dev, id);
-	}
+	ret = rc_init_adapter(dev, id);
 	if (ret < 0)
 	{
 		return ret;
@@ -981,8 +964,8 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	if ((adapter_count && rc_adapter_count == rc_state.num_hba) ||
 	    (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
 		int err;
-		rc_printk(RC_INFO, "%s: Initializing adapter", __FUNCTION__,
-		    adapter_count, rc_state.num_hba);
+		rc_printk(RC_INFO, "%s: Initializing misc device\n",
+				__FUNCTION__);
 		err = rc_init_host(dev);
 		if (!err) {
 			if (misc_register(&rccfg_api_dev))
