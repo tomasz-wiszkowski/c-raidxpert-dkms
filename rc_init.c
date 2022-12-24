@@ -26,6 +26,7 @@
 #include "version.h"
 #include "build_number.h"
 #include "rc_pci_ids.h"
+#include <linux/device.h>
 #include <linux/hdreg.h>
 #include <linux/reboot.h>
 #include <linux/pci.h>
@@ -55,12 +56,6 @@ extern const char *RC_DRIVER_BUILD_DATE;
 
 //#define RC_SUPPORT_V60_DRIVERS_ON_INTEL_PLATFORMS
 //#define RC_SUPPORT_V60_DRIVERS_ON_HUDSON_PLATFORMS
-
-// FIXME: some older kernels still supported by RAIDCore do not have
-//        DMA_BIT_MASK().  Remove once support for them has been dropped.
-#ifndef DMA_BIT_MASK
-#define DMA_BIT_MASK(n) (((n) == 64) ? ~0ULL : ((1ULL<<(n))-1))
-#endif
 
 MODULE_AUTHOR(VER_COMPANYNAME_STR);
 MODULE_DESCRIPTION("AMD-RAID controller");
@@ -214,7 +209,6 @@ int  rc_msg_stats(char *buf, int buf_size);
 int  rc_mop_stats(char *buf, int buf_size);
 void rc_send_msg(struct rc_send_arg_s *p_send_arg);
 void rc_msg_resume(rc_softstate_t *state, rc_adapter_t* adapter);
-
 
 struct rc_pci_bar {
 	struct {
@@ -488,26 +482,19 @@ rc_init_module(void)
 static void
 rc_get_bar(struct pci_dev *dev, int which_bar, struct rc_pci_bar *result)
 {
-	int i, index;
-	struct rc_pci_bar bar;
+	struct rc_pci_bar bar = {};
 
-	memset(&bar, 0, sizeof(bar));
+	bar.addr.low  = pci_resource_start(dev,which_bar);
+	bar.len       = pci_resource_len(dev,which_bar);
+	bar.flags     = pci_resource_flags(dev,which_bar);
 
-	for (i = 0, index = 0;  i <= which_bar; i++, index++) {
-		bar.addr.low  = pci_resource_start(dev,index);
-		bar.len       = pci_resource_len(dev,index);
-		bar.flags     = pci_resource_flags(dev,index);
-
-		if (bar.flags & 0x4) {
-			index++;
-			bar.addr.high =  pci_resource_start(dev,index);
-		} else {
-			bar.addr.high = 0;
-		}
-
-		rc_printk(RC_DEBUG, "bar %d addr 0x%x.%x len %d flags 0x%x\n",
-			  i, bar.addr.high, bar.addr.low, bar.len, bar.flags);
+	if (bar.flags & 0x4) {
+		which_bar++;
+		bar.addr.high =  pci_resource_start(dev,which_bar);
 	}
+
+	rc_printk(RC_DEBUG, "%s: bar addr 0x%x:%x len %d flags 0x%x\n",
+	    __FUNCTION__, bar.addr.high, bar.addr.low, bar.len, bar.flags);
 
 	*result = bar;
 }
@@ -533,7 +520,7 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	int                   i;
 	struct rc_pci_bar     bar;
 	//int			rc;
-    uint32_t              Loc;
+	uint32_t              Loc;
 
 	rc_printk(RC_DEBUG, "%s: Matched %.04x/%.04x/%.04x/%.04x\n", __FUNCTION__,
 		  id->vendor, id->device, id->subvendor, id->subdevice);
@@ -589,12 +576,12 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 		pci_read_config_byte(dev, i, &hw->pci_config_space[i]);
 	}
 
-    Loc = ((((hw->pci_func & 0xFF) << 8) | (hw->pci_slot & 0xFF)) << 8) | (hw->pci_bus & 0xFF);
+	Loc = ((((hw->pci_func & 0xFF) << 8) | (hw->pci_slot & 0xFF)) << 8) | (hw->pci_bus & 0xFF);
 
-    hw->orig_vendor_id = (uint16_t) 0;
-    hw->orig_device_id = (uint16_t) 0;
+	hw->orig_vendor_id = (uint16_t) 0;
+	hw->orig_device_id = (uint16_t) 0;
 
-    (void) RC_Unmap_VidDid(Loc, &hw->orig_vendor_id, &hw->orig_device_id);
+	(void) RC_Unmap_VidDid(Loc, &hw->orig_vendor_id, &hw->orig_device_id);
 
 	/*
 	 * set dma_mask to 64 bit capabilities but if that fails, try 32 bit
@@ -915,6 +902,7 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	int  ret = -ENODEV;
 	struct pci_device_id *probe_id;
 	struct pci_dev *probe_dev;
+	struct device *probe_dd;
 
 	/* Count the number adapters on the bus that we will claim. */
 	rc_printk(RC_DEBUG, "%s rcraid ENTER\n", __FUNCTION__);
@@ -941,6 +929,14 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 					  probe_dev->device
 					  );
 
+				probe_dd = &probe_dev->dev;
+
+				/* If NVMe device was not unbound, don't touch it. */
+				if (probe_dd->links.status == DL_DEV_DRIVER_BOUND) {
+					struct device_link *link;
+					rc_printk(RC_WARN, "%s: Driver already bound\n", __FUNCTION__);
+					continue;
+				}
 
 				/* Found an adapter */
 				adapter_count++;
@@ -1339,6 +1335,7 @@ rc_ahci_disable_irq(rc_adapter_t *adapter)
  */
 int rc_ahci_init(rc_adapter_t *adapter)
 {
+	rc_printk(RC_DEBUG, "%s\n",__FUNCTION__);
 	rc_ahci_disable_irq(adapter);
 
 	// try using msi (0 return means success)
