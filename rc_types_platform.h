@@ -33,7 +33,7 @@ typedef unsigned __int64 rc_uint64_t;
 typedef unsigned long long  rc_uint64_t;
 #endif
 
-typedef unsigned long       rc_uint_ptr_t;
+typedef void *rc_uint_ptr_t;
 
 #endif /* __BCM_BASETYPES_H__ */
 #endif /* RC_TYPES_H */

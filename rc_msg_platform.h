@@ -183,7 +183,7 @@ typedef struct rc_mem_list_op_s {
 
 typedef struct rc_access_ok_s {
     rc_uint64_t write;
-    rc_uint64_t access_location;
+    rc_uint_ptr_t access_location;
     rc_uint64_t access_size;
     rc_uint64_t returnStatus;
 
