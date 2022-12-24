@@ -933,7 +933,6 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 
 				/* If NVMe device was not unbound, don't touch it. */
 				if (probe_dd->links.status == DL_DEV_DRIVER_BOUND) {
-					struct device_link *link;
 					rc_printk(RC_WARN, "%s: Driver already bound\n", __FUNCTION__);
 					continue;
 				}
