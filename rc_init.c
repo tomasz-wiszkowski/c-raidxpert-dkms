@@ -417,32 +417,32 @@ rc_init_module(void)
                   RC_DRIVER_VERSION, RC_BUILD_NUMBER, RC_DRIVER_BUILD_DATE);
 	rc_printk(RC_NOTE, "%s %s\n", RC_DRIVER_NAME, rc_ident);
 
-        //
-        // Attempt to find NVMe original VID/DID table
-        //
-        memset(NvmeTrapDeviceVar, 0, sizeof(NvmeTrapDeviceVar));
-        if (get_efi())
-        {
-                efi_status_t    Status;
-                unsigned long   VarSize;
-                unsigned int    nvmeTrapDeviceAttrib = 0;
-                efi_guid_t      gAmdNvmeTrapDeviceVarGuid = NVME_TRAP_DEVICE_VAR_GUID;
+	//
+	// Attempt to find NVMe original VID/DID table
+	//
+	memset(NvmeTrapDeviceVar, 0, sizeof(NvmeTrapDeviceVar));
+	if (get_efi())
+	{
+		efi_status_t    Status;
+		unsigned long   VarSize;
+		unsigned int    nvmeTrapDeviceAttrib = 0;
+		efi_guid_t      gAmdNvmeTrapDeviceVarGuid = NVME_TRAP_DEVICE_VAR_GUID;
 
-                VarSize = sizeof(NvmeTrapDeviceVar);
-                {
-                        // EFI_NOT_FOUND if treminating 0 isn't present...
-                        static efi_char16_t NVME_TRAP_DEVICE_NAME[] = {
-                                'N', 'V', 'M', 'E', '_', 'T', 'R', 'A', 'P', '_', 'D', 'E', 'V', 'I', 'C', 'E', 0 };
+		VarSize = sizeof(NvmeTrapDeviceVar);
+		{
+			// EFI_NOT_FOUND if treminating 0 isn't present...
+			static efi_char16_t NVME_TRAP_DEVICE_NAME[] = {
+				'N', 'V', 'M', 'E', '_', 'T', 'R', 'A', 'P', '_', 'D', 'E', 'V', 'I', 'C', 'E', 0 };
 
-                        Status = get_efi()->get_variable(
-                                NVME_TRAP_DEVICE_NAME, // Name,
-                                &gAmdNvmeTrapDeviceVarGuid, // GUID
-                                &nvmeTrapDeviceAttrib, // Attribute
-                                &VarSize,
-                                &NvmeTrapDeviceVar[0]
-                                );
-                }
-        }
+			Status = get_efi()->get_variable(
+					NVME_TRAP_DEVICE_NAME, // Name,
+					&gAmdNvmeTrapDeviceVarGuid, // GUID
+					&nvmeTrapDeviceAttrib, // Attribute
+					&VarSize,
+					&NvmeTrapDeviceVar[0]
+					);
+		}
+	}
 
 	/*
 	 * enforce reasonable limits on module parameters
@@ -463,8 +463,8 @@ rc_init_module(void)
 	use_swl |= RC_SHWL_TYPE_CARD; // always support cards
 
 	rc_printk(RC_NOTE, "rcraid: cmd_q_depth %d, tag_q_depth %d, max_xfer "
-                  "%d, use_swl 0x%x\n", cmd_q_depth, tag_q_depth, max_xfer,
-                  use_swl);
+			"%d, use_swl 0x%x\n", cmd_q_depth, tag_q_depth, max_xfer,
+			use_swl);
 
 	rc_msg_level += debug;
 	if (rc_msg_level < 0)
@@ -479,18 +479,18 @@ rc_init_module(void)
 	/* Initialize Power Management DIPM & HIPM settings */
 	RC_EnableDIPM = RCRAID_DEFAULT_DIPM;
 	RC_EnableHIPM = RCRAID_DEFAULT_HIPM;
-    RC_EnableAN = RCRAID_DEFAULT_AN;
-    RC_EnableNCQ = RCRAID_DEFAULT_NCQ;
-    RC_EnableZPODD = RCRAID_DEFAULT_ZPODD;
+	RC_EnableAN = RCRAID_DEFAULT_AN;
+	RC_EnableNCQ = RCRAID_DEFAULT_NCQ;
+	RC_EnableZPODD = RCRAID_DEFAULT_ZPODD;
 
-    // Setup ACPI work handler
-    {
-        char    thread_name[64];
+	// Setup ACPI work handler
+	{
+		char    thread_name[64];
 
-        sprintf(thread_name, "%s ACPI thread", RC_DRIVER_NAME);
-        rc_wq = kthread_run(rc_wq_handler, NULL, thread_name);
-        spin_lock_init(&acpi_work_item_lock);
-    }
+		sprintf(thread_name, "%s ACPI thread", RC_DRIVER_NAME);
+		rc_wq = kthread_run(rc_wq_handler, NULL, thread_name);
+		spin_lock_init(&acpi_work_item_lock);
+	}
 }
 
 /*
@@ -840,7 +840,7 @@ dev_info(&dev->dev, "msi_enabled %d, msix_enabled %d\n", dev->msi_enabled, dev->
 	rc_printk(RC_NOTE, RC_DRIVER_NAME ": card %d: %s %s\n\n", adapter->instance,
 		  adapter->version->vendor, adapter->version->model);
 
-    pci_save_state(dev);
+	pci_save_state(dev);
 
 	return 0;
 }
@@ -906,7 +906,7 @@ rc_init_host(struct pci_dev *pdev)
 	}
 
 	rc_state.host_ptr = host_ptr;
-    rc_state.is_suspended = 0;
+	rc_state.is_suspended = 0;
 	scsi_scan_host(host_ptr);
 
 	rc_printk(RC_DEBUG, "rc_init_host: completed\n");
@@ -931,7 +931,7 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	/* Count the number adapters on the bus that we will claim. */
 	rc_printk(RC_DEBUG, "%s rcraid ENTER\n", __FUNCTION__);
 	if (!adapter_count) {
-        rc_printk(RC_NOTE, "%s: counting supported adapters\n", __FUNCTION__);
+		rc_printk(RC_NOTE, "%s: counting supported adapters\n", __FUNCTION__);
 		for (probe_id = &rcraid_id_tbl[0]; probe_id->vendor != 0; probe_id++) {
 			probe_dev = NULL;
 			while ((probe_dev = pci_get_subsys(probe_id->vendor,
@@ -962,7 +962,7 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 			}
 		}
 		rc_printk(RC_NOTE, "%s: Total adapters matched %u\n", __FUNCTION__,
-			  adapter_count);
+		    adapter_count);
 	}
 
 	if (use_swl & ((rc_version_t *)id->driver_data)->swl_type) {
@@ -970,7 +970,7 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 	if (ret < 0)
 	{
-	    return ret;
+		return ret;
 	}
 
 	/*
@@ -979,9 +979,10 @@ rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	 * the last adapter initialized will be used for all arrays.
 	 */
 	if ((adapter_count && rc_adapter_count == rc_state.num_hba) ||
-        (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
+	    (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
 		int err;
-
+		rc_printk(RC_INFO, "%s: Initializing adapter", __FUNCTION__,
+		    adapter_count, rc_state.num_hba);
 		err = rc_init_host(dev);
 		if (!err) {
 			if (misc_register(&rccfg_api_dev))
@@ -2561,7 +2562,6 @@ static struct ctl_table_header *rcraid_sysctl_hdr;
 static int __init rcraid_init(void)
 {
 	int err = 0;
-    int retries = 100;
 
 	/*
 	 * make sure this is NULL, use this to check if the core
@@ -2576,23 +2576,16 @@ static int __init rcraid_init(void)
 	if (err != 0)
 		return err;
 
-    //
-    // Setup version string for sysctl access
-    //
-    memset(version_string, 0, VERSION_STRING_LEN);
-    snprintf(version_string, VERSION_STRING_LEN, "V%s %s", RC_DRIVER_VERSION, RC_BUILD_NUMBER);
+	//
+	// Setup version string for sysctl access
+	//
+	memset(version_string, 0, VERSION_STRING_LEN);
+	snprintf(version_string, VERSION_STRING_LEN, "V%s %s", RC_DRIVER_VERSION, RC_BUILD_NUMBER);
 	rcraid_sysctl_hdr = register_sysctl_table(rcraid_root_table);
 	if (rcraid_sysctl_hdr == NULL)
 		return -ENOMEM;
 
-    // Allow sr_mod.ko to present any SR devices before exiting.
-    // Addresses timing window with linuxrc installer.
-    while (((rc_state.state & INIT_DONE) != INIT_DONE) && --retries)
-        msleep(100);
-
-    ssleep(5);
-
-    rc_init_proc();
+	rc_init_proc();
 
 	return 0;
 }
