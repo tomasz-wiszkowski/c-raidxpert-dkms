@@ -104,15 +104,16 @@ extern unsigned int RC_EnableAN;
 extern unsigned int RC_EnableNCQ;
 extern unsigned int RC_EnableZPODD;
 
-#define RCRAID_DEFAULT_DIPM \
-	0x00000000; /* Turn OFF DIPM for all ports by default for Linux */
-#define RCRAID_DEFAULT_HIPM \
-	0x00000000; /* Turn OFF HIPM for all ports by default for Linux */
-#define RCRAID_DEFAULT_AN \
-	0x00000001; /* Turn ON Asynchronous Notification by default for Linux */
-#define RCRAID_DEFAULT_NCQ 0x00000001; /* Turn ON NCQ by default for Linux */
-#define RCRAID_DEFAULT_ZPODD \
-	0x00000000; /* Turn ON Zero Power Optical Disk Device by default for Linux */
+// Turn OFF DIPM for all ports by default for Linux.
+#define RCRAID_DEFAULT_DIPM 0x00000000
+// Turn OFF HIPM for all ports by default for Linux.
+#define RCRAID_DEFAULT_HIPM 0x00000000
+// Turn ON Asynchronous Notification by default for Linux.
+#define RCRAID_DEFAULT_AN 0x00000001
+// Turn ON NCQ by default for Linux.
+#define RCRAID_DEFAULT_NCQ 0x00000001
+// Turn ON Zero Power Optical Disk Device by default for Linux.
+#define RCRAID_DEFAULT_ZPODD 0x00000000
 
 struct task_struct *rc_wq = NULL;
 rc_work_t *acpi_work_item_head = NULL;
@@ -331,8 +332,7 @@ static void rc_init_module(void)
 	extern char *rc_ident;
 
 	rc_printk(RC_NOTE,
-		  "%s %s raid driver version %s build_number %s built "
-		  "%s\n",
+		  "%s %s raid driver version %s build_number %s built %s\n",
 		  VER_COMPANYNAME_STR, RC_DRIVER_NAME, RC_DRIVER_VERSION,
 		  RC_BUILD_NUMBER, RC_DRIVER_BUILD_DATE);
 	rc_printk(RC_NOTE, "%s %s\n", RC_DRIVER_NAME, rc_ident);
@@ -1005,8 +1005,6 @@ void rc_shutdown_adapter(rc_adapter_t *adapter)
 	kfree(adapter);
 }
 
-void rc_stop_all_threads(void);
-void rc_start_all_threads(void);
 void rc_msg_suspend_work(rc_adapter_t *adapter);
 void rc_msg_init_tasklets(rc_softstate_t *state);
 void rc_msg_kill_tasklets(rc_softstate_t *state);

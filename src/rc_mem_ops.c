@@ -46,8 +46,6 @@
 static rc_thread_t rc_thread[NR_CPUS];
 static int rc_kthread(void *arg);
 
-void rc_start_all_threads(void);
-void rc_stop_all_threads(void);
 void rc_wakeup_all_threads(void);
 
 static int rc_start_thread(int cpu);

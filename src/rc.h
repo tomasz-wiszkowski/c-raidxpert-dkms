@@ -100,11 +100,11 @@ void rc_printk(int flag, const char *fmt, ...)
 #define RC_ASSERT(cond)
 #endif
 
-void rc_start_all_threads(void);
-void rc_stop_all_threads(void);
-void rc_event(rc_uint32_t type, rc_uint8_t bus, int update_mode);
-int rc_event_init(void);
-void rc_event_shutdown(void);
+extern void rc_start_all_threads(void);
+extern void rc_stop_all_threads(void);
+extern void rc_event(rc_uint32_t type, rc_uint8_t bus, int update_mode);
+extern int rc_event_init(void);
+extern void rc_event_shutdown(void);
 
 extern rc_softstate_t rc_state;
 extern rc_adapter_t *rc_dev[];
