@@ -897,8 +897,10 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 				if (probe_dd->links.status ==
 				    DL_DEV_DRIVER_BOUND) {
 					rc_printk(RC_WARN,
-						  "%s: Driver already bound\n",
-						  __FUNCTION__);
+						  "%s: Driver for device %s already bound (%s)\n",
+						  __FUNCTION__,
+						  dev_name(probe_dd),
+						  probe_dev->driver->name);
 					continue;
 				}
 
