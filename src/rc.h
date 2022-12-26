@@ -145,25 +145,6 @@ enum {
 };
 
 //
-// Pulled from rc_event.c
-//
-typedef struct rc_event_thread_s {
-        struct task_struct  *thread;
-        int                 running;
-        int                 num_srb;
-        rc_srb_queue_t      cfg_change_detect;
-        rc_srb_queue_t      cfg_change_response;
-        rc_uint32_t         targets[MAX_ARRAY];
-} rc_event_thread_t;
-
-extern rc_event_thread_t rc_event_thread;
-
-//
-// Declared in rc_config.c
-//
-extern struct semaphore rccfg_wait;
-
-//
 // Pulled from rc_mem_ops.c
 //
 #define RC_THREAD_BUF_CNT  16
@@ -184,8 +165,6 @@ typedef struct rc_thread_s {
     struct semaphore    stop_sema;
 } rc_thread_t;
 
-
-extern rc_thread_t rc_thread[];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
 #define DEVICE_ACPI_HANDLE(dev) ((acpi_handle)ACPI_HANDLE(dev))
@@ -208,8 +187,6 @@ typedef struct {
         uint8_t         Function;
         uint8_t         _rsv0;
 } NVME_TRAP_DEVICE;
-
-extern NVME_TRAP_DEVICE NvmeTrapDeviceVar[];
 
 #define check_lock(sp) {						\
 		if (sp->osic_locked) {					\

@@ -44,27 +44,27 @@
 
 #include "rc.h"
 
-rc_thread_t rc_thread[NR_CPUS];
-
-int rc_kthread(void *arg);
+static rc_thread_t rc_thread[NR_CPUS];
+static int rc_kthread(void *arg);
 
 void rc_start_all_threads(void);
 void rc_stop_all_threads(void);
 void rc_wakeup_all_threads(void);
 
-int rc_start_thread(int cpu);
-void rc_stop_thread(int cpu);
-void rc_wakeup_thread(int cpu);
+static int rc_start_thread(int cpu);
+static void rc_stop_thread(int cpu);
+static void rc_wakeup_thread(int cpu);
 
-int rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count);
-int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count);
-int rc_kthread_mem_copy(rc_thread_t *tp, rc_mem_op_t *mop);
-int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop);
-int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
-		     rc_uint64_t src, rc_uint32_t src_id,
-		     rc_uint32_t byte_count);
-int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
-		      rc_uint32_t byte_count);
+static int rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count);
+static int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count);
+static int rc_kthread_mem_copy(rc_thread_t *tp, rc_mem_op_t *mop);
+static int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop);
+static int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
+    rc_uint64_t src, rc_uint32_t src_id, rc_uint32_t byte_count);
+static int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
+    rc_uint32_t byte_count);
+static rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap,
+    rc_uint32_t starting_elem, rc_uint32_t offset, rc_thread_buf_t *buf);
 
 /* 2.6 added a new macro defined here for older kernel versions. */
 #ifndef for_each_online_cpu
@@ -478,7 +478,7 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 
 				pfn = src_dma_addr >> PAGE_SHIFT;
 				src_page = pfn_to_page(pfn);
-                src_vaddr = kmap_atomic(src_page); 
+                src_vaddr = kmap_atomic(src_page);
 				if (src_vaddr == 0) {
 					if (dst_page)
                         kunmap_atomic(dst_vaddr);
@@ -518,7 +518,7 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 
 				pfn = dst_dma_addr >> PAGE_SHIFT;
 				dst_page = pfn_to_page(pfn);
-                dst_vaddr = kmap_atomic(dst_page);      
+                dst_vaddr = kmap_atomic(dst_page);
 				if (dst_vaddr == 0) {
 					if (src_page)
                         kunmap_atomic(src_vaddr);
@@ -568,7 +568,7 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 		if (src_mapped == 0) {
 			if ((src->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 				if (src_page)
-                    kunmap_atomic(src_vaddr);                
+                    kunmap_atomic(src_vaddr);
 				src_page = (struct page *)0;
 				if (src_offset == src->sg_elem[src_idx].size) {
 					src_idx++;
@@ -584,7 +584,7 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 		if (dst_mapped == 0) {
 			if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 				if (dst_page)
-                    kunmap_atomic(dst_vaddr);             
+                    kunmap_atomic(dst_vaddr);
 				dst_page = (struct page *)0;
 				if (dst_offset == dst->sg_elem[dst_idx].size) {
 					dst_idx++;
@@ -601,7 +601,7 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 out:
 
 	if (src_page)
-        kunmap_atomic(src_vaddr);      
+        kunmap_atomic(src_vaddr);
 	if (dst_page)
         kunmap_atomic(dst_vaddr);
 	if (residual)
@@ -1040,11 +1040,11 @@ rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop)
 	void* src;
     void* dst;
     unsigned long numberOfBytes=0, byte_count=0;;
-    
+
     src = (void *) (uintptr_t) mop->mem.cp.src;
     dst = (void *) (uintptr_t) mop->mem.cp.dst;
     byte_count = mop->mem.cp.byte_count;
-   
+
     numberOfBytes = copy_to_user( dst, src, byte_count);
 
     if (numberOfBytes) {

@@ -5,12 +5,12 @@
  *
  ****************************************************************************/
 
-
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/sched.h>
 #include <linux/completion.h>
+#include <linux/gfp_types.h>
 
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
@@ -22,23 +22,13 @@
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
 
-#include "rc_types_platform.h"
-#include "rc_srb.h"
-#include "rc_scsi.h"
-#include "rc_msg_platform.h"
-#include "rc_adapter.h"
-
-#ifndef GFP_NOWAIT
-#define GFP_NOWAIT	(GFP_ATOMIC & ~__GFP_HIGH)
-#endif // ! GFP_NOWAIT
+#include "rc.h"
 
 extern struct mutex ioctl_mutex;
-
 extern rc_softstate_t rc_state;
 extern int rc_srb_seq_num;
-extern void rc_msg_process_srb(rc_srb_t *);
 
-struct semaphore rccfg_wait;
+static struct semaphore rccfg_wait;
 
 static void
 rccfg_callback (rc_srb_t *srb)
@@ -299,7 +289,7 @@ rccfg_compat_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 #endif
 
 
-struct file_operations rccfg_fops = {
+static struct file_operations rccfg_fops = {
 	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= rccfg_ioctl,
 	.compat_ioctl	= rccfg_compat_ioctl,

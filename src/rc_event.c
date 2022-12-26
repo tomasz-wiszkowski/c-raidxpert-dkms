@@ -26,9 +26,19 @@
 #include "linux/kmod.h"
 #include "linux/kthread.h"
 
+typedef struct rc_event_thread_s {
+        struct task_struct  *thread;
+        int                 running;
+        int                 num_srb;
+        rc_srb_queue_t      cfg_change_detect;
+        rc_srb_queue_t      cfg_change_response;
+        rc_uint32_t         targets[MAX_ARRAY];
+} rc_event_thread_t;
+
+static rc_event_thread_t rc_event_thread;
+
 static void rc_cfg_change_detect(rc_uint32_t type, rc_uint32_t bus, int flags);
 static void rc_cfg_change_detect_tasklet( unsigned long arg);
-
 static void rc_cfg_change_response(struct rc_srb_s *srb);
 static void rc_send_inq(rc_uint32_t bus, rc_uint32_t target, rc_uint32_t lun, int update_mode);
 static void rc_inq_callback (rc_srb_t *srb);
@@ -37,10 +47,6 @@ static int rc_event_kthread(void *arg);
 
 extern int rc_srb_seq_num;
 
-rc_event_thread_t rc_event_thread;
-#if 0
-static int rc_scsi_delay = 200;
-#endif
 int
 rc_event_init(void)
 {
@@ -496,18 +502,10 @@ rc_notify_scsi_layer(int channel, int target, int lun, int present)
 		return error;
 
 	if (present) {
-#if 0
-        if (rc_scsi_delay)
-            mdelay(rc_scsi_delay);
-#endif
 		error = scsi_add_device(shost, channel, target, lun);
 	} else {
 		sdev = scsi_device_lookup(shost, channel, target, lun);
 		if (sdev) {
-#if 0
-            if (rc_scsi_delay)
-                mdelay(rc_scsi_delay);
-#endif
 			scsi_remove_device(sdev);
 			scsi_device_put(sdev);
 			error = 0;

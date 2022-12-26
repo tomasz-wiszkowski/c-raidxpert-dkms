@@ -44,7 +44,6 @@ EXTRA_CFLAGS += -DRC_MPT2
 EXTRA_CFLAGS += -DRC_DETECT_AND_BLOCK_PROMISE_RAID
 EXTRA_CFLAGS += -DRC_DRIVER_BUILD_DATE='"${RC_BUILD_DATE}"'
 
-
 # Build against an installed kernel object tree.
 # Either set the kernel version here or pass in the version.
 # Defaults to building for the currently running system.

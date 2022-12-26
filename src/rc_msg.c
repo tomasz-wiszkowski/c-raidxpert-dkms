@@ -24,54 +24,67 @@
 #include "linux/sysrq.h"
 #include "linux/nmi.h"
 #include "asm/msr.h"
+#include <linux/minmax.h>
 #include <linux/page-flags.h>
 #include <linux/vmalloc.h>
 #include <scsi/sg.h>
-#include "rc_ahci.h"
 
-int  rc_setup_communications(void);
 void rc_send_msg(struct rc_send_arg_s *p_send_arg);
-void rc_msg_process_srb(rc_srb_t *srb);
-void rc_receive_msg(void);
-void rc_send_test(void);
 int  rc_msg_send_srb(struct scsi_cmnd * scp);
-void rc_msg_check_int_tasklet(unsigned long arg);
-
-void rc_msg_send_srb_function (rc_softstate_t *state, int function_code);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-void rc_msg_timer(unsigned long data);
-#else
-void rc_msg_timer(struct timer_list *t);
-#endif
-
-void rc_msg_timeout(int to);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-void rc_msg_timeout_done(unsigned long data);
-#else
-void rc_msg_timeout_done(struct timer_list *t);
-#endif
-
 void rc_msg_isr(rc_adapter_t *adapter);
-void rc_msg_schedule_dpc(void);
-void rc_msg_cpuid(unsigned int function, unsigned int* eax, unsigned int* ebx, unsigned int* ecx, unsigned int* edx);
-void rc_msg_srb_done(struct rc_srb_s *srb);
-void rc_msg_srb_complete(struct rc_srb_s *srb);
-void rc_msg_build_sg(rc_srb_t *srb);
-void rc_msg_map_phys_to_virt(struct map_memory_s *map);
-void rc_msg_get_dma_memory(alloc_dma_address_t *dma_address);
-void rc_msg_map_mem(struct map_memory_s *map);
-void rc_msg_unmap_mem(struct unmap_memory_s *unmap);
 void rc_msg_shutdown(rc_softstate_t *statep);
-void rc_msg_access_ok(rc_access_ok_t accessOk);
-
-void rc_msg_srb_q_tasklet(unsigned long arg);
-void rc_msg_srb_done_tasklet(unsigned long arg);
-void rc_dump_scp(struct scsi_cmnd * scp );
-void rc_clear_stack(void);
 int  rc_msg_stats(char *buf, int buf_size);
-int  rc_mop_stats(char *buf, int buf_size);
-void rc_wakeup_all_threads(void);
+
+static int  rc_setup_communications(void);
+static void rc_msg_process_srb(rc_srb_t *srb);
+static void rc_receive_msg(void);
+static void rc_send_test(void);
+static void rc_msg_check_int_tasklet(unsigned long arg);
+static void rc_msg_send_srb_function (rc_softstate_t *state, int function_code);
+static void rc_msg_timer(struct timer_list *t);
+static void rc_msg_timeout(int to);
+static void rc_msg_timeout_done(struct timer_list *t);
+static void rc_msg_schedule_dpc(void);
+static void rc_msg_cpuid(unsigned int function, unsigned int* eax, unsigned int* ebx, unsigned int* ecx, unsigned int* edx);
+static void rc_msg_srb_done(struct rc_srb_s *srb);
+static void rc_msg_srb_complete(struct rc_srb_s *srb);
+static void rc_msg_build_sg(rc_srb_t *srb);
+static void rc_msg_map_phys_to_virt(struct map_memory_s *map);
+static void rc_msg_get_dma_memory(alloc_dma_address_t *dma_address);
+static void rc_msg_map_mem(struct map_memory_s *map);
+static void rc_msg_unmap_mem(struct unmap_memory_s *unmap);
+static void rc_msg_access_ok(rc_access_ok_t accessOk);
+static void rc_msg_srb_q_tasklet(unsigned long arg);
+static void rc_msg_srb_done_tasklet(unsigned long arg);
+static void rc_msg_build_sg_phys(rc_srb_t *srb);
+static void rc_msg_build_sg_virt(rc_srb_t *srb);
+static void rc_msg_free_all_dma_memory(rc_adapter_t *adapter);
+static void rc_msg_free_dma_memory(rc_adapter_t	*adapter, void *cpu_addr,
+    dma_addr_t dmaHandle, rc_uint32_t bytes);
+static void rc_msg_pci_config(rc_pci_op_t *pci_op, rc_uint32_t call_type);
+static void rc_msg_resume(rc_softstate_t *state, rc_adapter_t* adapter);
+static void rc_msg_resume_work(void);
+
+static int32_t rc_vprintf(uint32_t sev, const char *fmt, va_list arg);
+
+static void
+rc_set_sense_data(char *sense, uint8_t sense_key, uint8_t sense_code,
+		   uint8_t add_sense_code, uint8_t incorrect_len,
+		   uint8_t bit_ptr, uint32_t field_ptr, uint32_t residue);
+
+extern void rc_dump_scp(struct scsi_cmnd * scp );
+extern int  rc_mop_stats(char *buf, int buf_size);
+extern void rc_wakeup_all_threads(void);
+
+
+static rc_uint32_t rc_ahci_regread(void*, rc_uint32_t) {
+	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
+	return 0;
+}
+
+static void rc_ahci_regwrite(void*, rc_uint32_t, rc_uint32_t) {
+	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
+}
 
 void
 rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t* dmaHandle, rc_uint32_t bytes,
@@ -101,12 +114,6 @@ handler:    rc_sysrq_state,
 help_msg:   "rcraid-Dump-state",
 action_msg: "Dumping rcraid state",
 };
-
-
-void
-rc_set_sense_data (char *sense, uint8_t sense_key, uint8_t sense_code,
-		   uint8_t add_sense_code, uint8_t incorrect_len,
-		   uint8_t bit_ptr, uint32_t field_ptr, uint32_t residue);
 
 static char rc_stats_buf[1024];
 
@@ -195,42 +202,32 @@ static char sbuf[256];
 int32_t
 rc_vprintf(uint32_t severity, const char *format, va_list ar)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
-	struct timeval tv = { 0 };
-#else
 	struct timespec64 tv = { 0 };
-#endif
-    static int rc_saw_newline=1;
+	static int rc_saw_newline=1;
 
 	if (severity > rc_msg_level)
 		return 0;
 
-    // Only print timestamp if new line -- i.e.
-    // last user message had a newline character.
-    if (severity && rc_saw_newline) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
-		do_gettimeofday(&tv);
-		printk("rcraid: (%li.%06li) ", tv.tv_sec, tv.tv_usec);
-#else
+	// Only print timestamp if new line -- i.e.
+	// last user message had a newline character.
+	if (severity && rc_saw_newline) {
 		ktime_get_real_ts64(&tv);
 		//printk("rcraid: (%lli.%06li) ", tv.tv_sec, tv.tv_nsec);
-#endif
-
-        rc_saw_newline = 0; // No newline in timestamp
+		rc_saw_newline = 0; // No newline in timestamp
 	}
 
-    if (rc_saw_newline)
-    {
-        // Last user message had a newline character -- this
-        // is a new message, not a continuation
-        rc_saw_newline = strchr(format, '\n') ? 1 : 0;
-        return vprintk(format, ar);
-    } else {
-        // No newline so this message needs to be a continuation.
-        // Put into temp buffer then print with KERN_CONT attribute.
-        vscnprintf(sbuf, sizeof(sbuf), format, ar);
-        return printk(KERN_CONT "%s", sbuf);
-    }
+	if (rc_saw_newline)
+	{
+		// Last user message had a newline character -- this
+		// is a new message, not a continuation
+		rc_saw_newline = strchr(format, '\n') ? 1 : 0;
+		return vprintk(format, ar);
+	} else {
+		// No newline so this message needs to be a continuation.
+		// Put into temp buffer then print with KERN_CONT attribute.
+		vscnprintf(sbuf, sizeof(sbuf), format, ar);
+		return printk(KERN_CONT "%s", sbuf);
+	}
 }
 
 /*
@@ -318,8 +315,6 @@ rc_send_test(void)
 	args.call_type = RC_CTS_TEST;
 	rc_send_msg(&args);
 }
-
-void rc_msg_free_all_dma_memory(rc_adapter_t	*adapter);
 
 /*
  *
@@ -593,7 +588,6 @@ int rc_wq_handler(void *work)
 	            if (args->u.acpi.inPtr == NULL && args->u.acpi.outPtr == NULL &&
 	                    args->u.acpi.inSize == 0 && args->u.acpi.outSize == 0)
 	            {
-//#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,1)
                     //
                     // Somewhere after 3.2.0, ACPI no longer enables GPE's if the device
                     // is WAKE capable. Instead, ACPI relies on the power management system
@@ -615,7 +609,6 @@ int rc_wq_handler(void *work)
                         // Arm for notification
                         ac_stat = acpi_enable_gpe(NULL, RC_ODD_GpeNumber);
                     }
-//#endif
 	                // Invoke only
 	                args->u.acpi.status =
 	                        acpi_evaluate_object((acpi_handle) rc_work->handle, rc_work->method, NULL, NULL);
@@ -644,7 +637,7 @@ int rc_wq_handler(void *work)
 	                        switch (out_object->type)
 	                        {
 	                        case ACPI_TYPE_INTEGER:
-	                            args->u.acpi.outSize = min((u64) args->u.acpi.outSize, (u64) sizeof(u64));
+	                            args->u.acpi.outSize = min_t(u64, args->u.acpi.outSize, (u64) sizeof(u64));
 	                            memcpy(args->u.acpi.outPtr, &out_object->integer.value, args->u.acpi.outSize);
 	                            break;
 	                        case ACPI_TYPE_BUFFER:
@@ -847,7 +840,6 @@ rc_receive_msg(void)
 
     case RC_ACPI_INVOKE:
         {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
             rc_adapter_t    *adapter = rc_dev[0];       // FIXME
             struct pci_dev  *pdev = adapter->pdev;
             acpi_handle     handle = DEVICE_ACPI_HANDLE(&pdev->dev);
@@ -890,7 +882,6 @@ rc_receive_msg(void)
                     }
                 }
             }
-#endif  /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0) */
         }
         break;
 
@@ -1190,19 +1181,19 @@ rc_msg_init(rc_softstate_t *state)
 		args.u.init_controller.pci_config_space =
 			adapter->hardware.pci_config_space;
 		args.u.init_controller.pci_config_space_length = PCI_CFG_SIZE;
-        args.u.init_controller.orig_vendor_id = adapter->hardware.orig_vendor_id;
-        args.u.init_controller.orig_device_id = adapter->hardware.orig_device_id;
-        args.u.init_controller.pci_location =
-            (rc_uint32_t) ((((adapter->hardware.pci_func & 0xFF) << 8) | (adapter->hardware.pci_slot & 0xFF)) << 8) | (adapter->hardware.pci_bus & 0xFF);
+		args.u.init_controller.orig_vendor_id = adapter->hardware.orig_vendor_id;
+		args.u.init_controller.orig_device_id = adapter->hardware.orig_device_id;
+		args.u.init_controller.pci_location =
+		    (rc_uint32_t) ((((adapter->hardware.pci_func & 0xFF) << 8) | (adapter->hardware.pci_slot & 0xFF)) << 8) | (adapter->hardware.pci_bus & 0xFF);
 		args.u.init_controller.bar_memory[adapter->version->which_bar] =
-			adapter->hardware.vaddr;
+		    adapter->hardware.vaddr;
 		args.u.init_controller.bar_length[adapter->version->which_bar] =
-			adapter->hardware.mem_len;
-        args.u.init_controller.context = (void *) adapter;
-	if (adapter->version->swl_type == RC_SHWL_TYPE_AHCI) {
-            args.u.init_controller.regread = rc_ahci_regread;
-            args.u.init_controller.regwrite = rc_ahci_regwrite;
-	}
+		    adapter->hardware.mem_len;
+		args.u.init_controller.context = (void *) adapter;
+
+		// Note: unsupported calls.
+		args.u.init_controller.regread_unsupported = rc_ahci_regread;
+		args.u.init_controller.regwrite_unsupported = rc_ahci_regwrite;
 
 		// Fill in the rest
 		rc_printk(RC_DEBUG, "rc_msg_init: init controller %d - &args %px\n", i, &args);
@@ -1296,16 +1287,8 @@ rc_msg_init(rc_softstate_t *state)
 	/*
 	 * intialize the periodic timer for the OSIC
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-	init_timer(&state->timer);
-	state->timer.expires = jiffies  + state->timer_interval ;
-	state->timer.data = (unsigned long)state;
-	state->timer.function = rc_msg_timer;
-	add_timer(&state->timer);
-#else
 	timer_setup(&state->timer, rc_msg_timer, 0);
 	mod_timer(&state->timer, jiffies + state->timer_interval);
-#endif
 	state->state |= ENABLE_TIMER;
 
     rc_printk(RC_INFO2,"rc_msg_init: timer started.... wait for callback \n");
@@ -1332,21 +1315,12 @@ rc_msg_init(rc_softstate_t *state)
 }
 
 void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-rc_msg_timer(unsigned long data)
-#else
 rc_msg_timer(struct timer_list *t)
-#endif
 {
 	rc_softstate_t *state;
 	rc_send_arg_t    args;
 
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-	state = (rc_softstate_t *)data;
-#else
 	state = from_timer(state, t, timer);
-#endif
 
 	if ((state->state & ENABLE_TIMER) == 0)
 		return;
@@ -1354,16 +1328,8 @@ rc_msg_timer(struct timer_list *t)
 	/*
 	 * set up timeout
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-	init_timer(&state->timer);
-	state->timer.expires = jiffies  + state->timer_interval;
-	state->timer.data = (unsigned long)state;
-	state->timer.function = rc_msg_timer;
-	add_timer(&state->timer);
-#else
 	timer_setup(&state->timer, rc_msg_timer, 0);
 	mod_timer(&state->timer, jiffies + state->timer_interval);
-#endif
 
 	spin_lock(&state->osic_lock);
 	check_lock(state);
@@ -2373,7 +2339,6 @@ out:
 
 }
 
-
 void
 rc_msg_unmap_mem(struct unmap_memory_s *unmap)
 {
@@ -2425,18 +2390,7 @@ rc_msg_unmap_mem(struct unmap_memory_s *unmap)
 
 }
 
-
 void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-rc_msg_timeout_done(unsigned long data)
-{
-	rc_softstate_t *state;
-
-	state = (rc_softstate_t *)data;
-	init_timer(&state->msg_timeout);
-	up(&state->msg_timeout_sema);
-}
-#else
 rc_msg_timeout_done(struct timer_list *t)
 {
 	rc_softstate_t *state;
@@ -2445,7 +2399,6 @@ rc_msg_timeout_done(struct timer_list *t)
 	timer_setup(&state->msg_timeout, rc_msg_timeout_done, 0);
 	up(&state->msg_timeout_sema);
 }
-#endif
 
 void
 rc_msg_timeout( int to)
@@ -2457,16 +2410,8 @@ rc_msg_timeout( int to)
 	 * set up timeout
 	 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-	init_timer(&state->msg_timeout);
-	state->msg_timeout.expires = jiffies  + to;
-	state->msg_timeout.data = (unsigned long)state;
-	state->msg_timeout.function = rc_msg_timeout_done;
-	add_timer(&state->msg_timeout);
-#else
 	timer_setup(&state->msg_timeout, rc_msg_timeout_done, 0);
 	mod_timer(&state->msg_timeout, jiffies + to);
-#endif
 	down(&state->msg_timeout_sema);
 
 }
@@ -2475,23 +2420,7 @@ rc_msg_timeout( int to)
 void
 rc_msg_access_ok(rc_access_ok_t accessOk)
 {
-
-
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
-#ifdef VERIFY_WRITE
-	accessOk.returnStatus = access_ok( VERIFY_WRITE , accessOk.access_location, accessOk.access_size);
-#else
- 	accessOk.returnStatus = access_ok(accessOk.access_location, accessOk.access_size);
-
-#endif
-#else
-
-    accessOk.returnStatus = access_ok(accessOk.access_location, accessOk.access_size);
-
-
-
-#endif
+	accessOk.returnStatus = access_ok(accessOk.access_location, accessOk.access_size);
 }
 
 
@@ -2642,12 +2571,6 @@ static void rc_sysrq_state (int key)
 	rc_printk(RC_ALERT, rc_stats_buf);
 }
 
-size_t
-Min(size_t a, size_t b)
-{
-    return (a < b) ? a : b;
-}
-
 acpi_status
 rc_acpi_evaluate_object(acpi_handle handle, char *method, void *ret, int *size)
 {
@@ -2677,15 +2600,15 @@ rc_acpi_evaluate_object(acpi_handle handle, char *method, void *ret, int *size)
             switch (acpi_obj->type)
             {
             case ACPI_TYPE_INTEGER:
-                sz = Min(sz, sizeof(acpi_obj->integer.value));
+                sz = min_t(size_t, sz, sizeof(acpi_obj->integer.value));
                 memcpy(ret, &acpi_obj->integer.value, sz);
                 break;
             case ACPI_TYPE_BUFFER:
-                sz = Min(sz, acpi_obj->buffer.length);
+                sz = min_t(size_t, sz, acpi_obj->buffer.length);
                 memcpy(ret, acpi_obj->buffer.pointer, sz);
                 break;
             case ACPI_TYPE_PACKAGE:
-                sz = Min(sz, buffer.length);
+                sz = min_t(size_t, sz, buffer.length);
                 memcpy(ret, acpi_obj, sz);
                 break;
             default:

@@ -301,9 +301,17 @@ typedef    struct rc_init_controller_s {
 	rc_uint32_t min_virtual_memory_size_needed;
 	rc_uint32_t min_cache_memory_size_needed;
 
-    rc_uint32_t (*regread)(void *, rc_uint32_t);
-    void        (*regwrite)(void *, rc_uint32_t, rc_uint32_t);
-    void        *context;
+	// The following two fields are said to be required by the software
+	// which is bizarre to say the least.
+	// The software should not have the ability to manipulate hardware
+	// registers, but just in case this is actually really used, keeping
+	// this here.
+	// These two calls will log an unsupported function call and won't
+	// perform any actuall register reads/writes.
+	rc_uint32_t (*regread_unsupported)(void *, rc_uint32_t);
+	void        (*regwrite_unsupported)(void *, rc_uint32_t, rc_uint32_t);
+
+	void        *context;
 } rc_init_controller_t;
 
 typedef struct rc_final_init_s {
@@ -520,14 +528,14 @@ typedef struct rc_interface_s {
 	rc_uint32_t cookie_hi;
 	rc_uint32_t version;
 	rc_uint32_t checksum;
-    rc_function_t *check_interrupt_function;
-    rc_function_t *send_function;
+	rc_function_t *check_interrupt_function;
+	rc_function_t *send_function;
 	struct rc_send_arg_s *send_arg;
-    void *check_interrupt_arg;
+	void *check_interrupt_arg;
 
 
 	rc_function_t *receive_function;
-    rc_function_t *schedule_dpc_function;
+	rc_function_t *schedule_dpc_function;
 	rc_function_cpuid_t *cpuid_function;
 	struct rc_receive_arg_s *receive_arg;
 } rc_interface_t;

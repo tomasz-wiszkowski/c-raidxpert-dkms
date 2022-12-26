@@ -38,15 +38,9 @@
 #include <linux/pm_runtime.h>
 
 #define RC_DRIVER_VERSION       RC_VERSION_STR
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,10,0)
-#if !defined(RC_DRIVER_BUILD_DATE)
-#define RC_DRIVER_BUILD_DATE    __DATE__
-#endif  /* !defined(RC_DRIVER_BUILD_DATE) */
-#else
 #if !defined(RC_DRIVER_BUILD_DATE)
 extern const char *RC_DRIVER_BUILD_DATE;
 #endif	/* !defined(RC_DRIVER_BUILD_DATE) */
-#endif	/* KERNEL_VERSION(5,0,0) */
 #define RC_DRIVER_BUILD_TIME    __TIME__
 #define RC_DRIVER_NAME          "rcraid"
 #define RC_MAX_CMD_Q_DEPTH      1024
@@ -54,66 +48,38 @@ extern const char *RC_DRIVER_BUILD_DATE;
 #define RC_MAX_TAG_Q_DEPTH      255
 #define RC_DEFAULT_TAG_Q_DEPTH  16
 
-//#define RC_SUPPORT_V60_DRIVERS_ON_INTEL_PLATFORMS
-//#define RC_SUPPORT_V60_DRIVERS_ON_HUDSON_PLATFORMS
-
 MODULE_AUTHOR(VER_COMPANYNAME_STR);
 MODULE_DESCRIPTION("AMD-RAID controller");
 MODULE_LICENSE("Proprietary");
 
 static int debug = 0;
-#ifdef module_param_named
-module_param_named(debug, debug, int, 0444);
-#else
-MODULE_PARM (debug, "i");
-#endif
+module_param(debug, int, S_IRUGO);
 MODULE_PARM_DESC (debug, "debug print level");
 
 static int cmd_q_depth = RC_DEFAULT_CMD_Q_DEPTH;
-#ifdef module_param_named
-module_param_named(cmd_q_depth, cmd_q_depth, int, 0444);
-#else
-MODULE_PARM (cmd_q_depth, "i");
-#endif
+module_param(cmd_q_depth, int, S_IRUGO);
 MODULE_PARM_DESC (cmd_q_depth, "total command queue depth");
 
 static int tag_q_depth = RC_DEFAULT_TAG_Q_DEPTH;
-#ifdef module_param_named
-module_param_named(tag_q_depth, tag_q_depth, int, 0444);
-#else
-MODULE_PARM (tag_q_depth, "i");
-#endif
+module_param(tag_q_depth, int, S_IRUGO);
 MODULE_PARM_DESC (tag_q_depth, "individual tagged command queue depth");
 
-static int max_xfer = 2048; // AHCI PRD limit is 224K or 448 sectors
-#ifdef module_param_named
-module_param_named(max_xfer, max_xfer, int, 0444);
-#else
-MODULE_PARM (max_xfer, "i");
-#endif
+// AHCI PRD limit is 224K or 448 sectors.
+static int max_xfer = 2048;
+module_param(max_xfer, int, S_IRUGO);
 MODULE_PARM_DESC (max_xfer, "max sectors per transfer");
 
 // Set the number of adapters for spanning. Issues with "hot insert"
 // so force this to be passed every time...
 static int rc_adapter_count = 999;      // Bogus value
-#ifdef module_param_named
-module_param_named(rc_adapter_count, rc_adapter_count, int, 0444);
-#else
-MODULE_PARM (rc_adapter_count, "i");
-#endif  /* module_param_named */
+module_param(rc_adapter_count, int, S_IRUGO);
 MODULE_PARM_DESC (rc_adapter_count, "Specify number of spanned adapters");
 
-//
 // Delay prior to suspend improves chance of success (from failing
-//  under load on second cycle to working until manually stopped).
-//  Add as parameter so we can vary without rebuilding/installing.
-//
+// under load on second cycle to working until manually stopped).
+// Add as parameter so we can vary without rebuilding/installing.
 static int rc_suspend_delay = 5000;
-#ifdef module_param_named
-module_param_named(rc_suspend_delay, rc_suspend_delay, int, 0444);
-#else
-MODULE_PARM(rc_suspend_delay, "i");
-#endif  /* module_param_named */
+module_param(rc_suspend_delay, int, S_IRUGO);
 MODULE_PARM_DESC(rc_suspend_delay, "suspend delay");
 
 #define VERSION_STRING_LEN      256
@@ -122,9 +88,7 @@ static char                     version_string[VERSION_STRING_LEN];
 /*
  * Globals
  */
-int                rc_config_debug = 0;
 rc_softstate_t     rc_state;
-int                rc_cntl_num = 0;
 int                rc_msg_level = RC_DEFAULT_ERR_LEVEL;
 rc_adapter_t      *rc_dev[MAX_HBA];
 struct mutex	   ioctl_mutex;
@@ -161,54 +125,44 @@ static int  rc_eh_dev_reset(struct scsi_cmnd * scmd);
 static int  rc_eh_bus_reset(struct scsi_cmnd * scmd);
 static int  rc_eh_hba_reset(struct scsi_cmnd * scmd);
 
-void        rc_shutdown_adapter(rc_adapter_t *adapter);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-int         rc_ioctl(struct scsi_device * scsi_dev_ptr, int cmd, void *arg);
-#else
-int         rc_ioctl(struct scsi_device * scsi_dev_ptr, unsigned int cmd, void *arg);
-#endif
-
+static void rc_shutdown_host(struct Scsi_Host *host_ptr);
+static void rc_shutdown_adapter(rc_adapter_t *adapter);
+static void rcraid_shutdown_one(struct pci_dev *pdev);
+static int  rc_ioctl(struct scsi_device * scsi_dev_ptr, unsigned int cmd, void *arg);
 
 void        rc_dump_scp(struct scsi_cmnd * scp);
-const char *rc_info(struct Scsi_Host *host_ptr);
-void        rc_timeout(int to);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-void        rc_timeout_done(unsigned long data);
-#else
-void	    rc_timeout_done(struct timer_list *t);
-#endif
+static const char *rc_info(struct Scsi_Host *host_ptr);
 static int  rc_slave_cfg(struct scsi_device *sdev);
-int         rc_bios_params(struct scsi_device *sdev, struct block_device *bdev,
+static int  rc_bios_params(struct scsi_device *sdev, struct block_device *bdev,
 			   sector_t capacity, int geom[]);
 
-int rc_queue_cmd_lck (struct scsi_cmnd * scp);
+static int rc_queue_cmd_lck (struct scsi_cmnd * scp);
 
 #ifdef RC_AHCI_SUPPORT
 // Additions for AHCI driver
 static inline void rc_ahci_disable_irq(rc_adapter_t *adapter);
-int         rc_ahci_init(rc_adapter_t *adapter);
-int         rc_ahci_start(rc_adapter_t *adapter);
-int         rc_ahci_shutdown(rc_adapter_t *adapter);
-irqreturn_t rc_ahci_isr(int irq, void *arg, struct pt_regs *regs);
+static int         rc_ahci_init(rc_adapter_t *adapter);
+static int         rc_ahci_start(rc_adapter_t *adapter);
+static int         rc_ahci_shutdown(rc_adapter_t *adapter);
+static irqreturn_t rc_ahci_isr(int irq, void *arg, struct pt_regs *regs);
 #endif // RC_AHCI_SUPPORT
 
 // Additions for NVME driver
-int         rc_nvme_init(rc_adapter_t *adapter);
-int         rc_nvme_start(rc_adapter_t *adapter);
-int         rc_nvme_shutdown(rc_adapter_t *adapter);
-irqreturn_t rc_nvme_isr(int irq, void *arg, struct pt_regs *regs);
+static int         rc_nvme_init(rc_adapter_t *adapter);
+static int         rc_nvme_start(rc_adapter_t *adapter);
+static int         rc_nvme_shutdown(rc_adapter_t *adapter);
+static irqreturn_t rc_nvme_isr(int irq, void *arg, struct pt_regs *regs);
 
-void       rc_remove_proc(void);
+static void        rc_init_proc(void);
+static void        rc_remove_proc(void);
 
 void rc_msg_isr( rc_adapter_t *adapter);
 int  rc_msg_send_srb(struct scsi_cmnd * scp);
 int  rc_msg_init(rc_softstate_t *state);
 void rc_msg_shutdown(rc_softstate_t *statep);
-int  rc_reboot_notify(struct notifier_block *nb, ulong event, void *buf);
 int  rc_msg_stats(char *buf, int buf_size);
 int  rc_mop_stats(char *buf, int buf_size);
 void rc_send_msg(struct rc_send_arg_s *p_send_arg);
-void rc_msg_resume(rc_softstate_t *state, rc_adapter_t* adapter);
 
 struct rc_pci_bar {
 	struct {
@@ -337,10 +291,6 @@ static Scsi_Host_Template driver_template = {
 	.eh_device_reset_handler = rc_eh_dev_reset,
 	.eh_bus_reset_handler =    rc_eh_bus_reset,
 	.eh_host_reset_handler =   rc_eh_hba_reset,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,0,0)
-	.use_clustering =          ENABLE_CLUSTERING,
-#else
-#endif	/* (5,0,0) */
 	.slave_configure =         rc_slave_cfg,
   .cmd_size = sizeof(struct rc_scsi_cmd),
 };
@@ -358,7 +308,7 @@ static struct efi *get_efi(void)
 #endif  /* CONFIG_EFI */
 }
 
-NVME_TRAP_DEVICE        NvmeTrapDeviceVar[MAX_HBA - 1];         // One HBA reserved for AHCI(/ATAPI)
+static NVME_TRAP_DEVICE        NvmeTrapDeviceVar[MAX_HBA - 1];         // One HBA reserved for AHCI(/ATAPI)
 
 static efi_status_t
 RC_Unmap_VidDid(
@@ -615,7 +565,6 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 		return -ENODEV;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
     // Check for device before calling init_func to ensure RC_EnableZPODD properly set.
     {
         acpi_handle                 handle = DEVICE_ACPI_HANDLE(&adapter->pdev->dev);
@@ -740,7 +689,6 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
         rc_printk(RC_INFO, "### %s(): RC_EnableZPODD = %d, RC_ODD_Device = ODD%c, RC_ODDZDevAddr = 0x%x, RC_ODD_GpeNumber = %d\n",
                 __FUNCTION__, RC_EnableZPODD, ODD_Devices[RC_ODD_Device], RC_ODDZDevAddr, RC_ODD_GpeNumber);
     }
-#endif  /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0) */
 
 	{
 		dma_addr_t	mem_dma;
@@ -764,11 +712,6 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
     // Some NVMe devices only work with MSI-X interrupts. Use
     // the devm_ to properly set everything up...
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-    if (request_irq(dev->irq, (void *)adapter->version->isr_func,
-            RC_IRQF,
-            adapter->version->model, (void *)adapter ) < 0) {
-#else
     // repurpose 'i' here
     i = dev->irq;
     if (dev->msix_enabled)
@@ -779,27 +722,17 @@ rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
             0,      // RC_IRQF,
             RC_DRIVER_NAME,
             (void *) adapter) < 0) {
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
 		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d request_irq failed\n",
 			  adapter->instance);
 		rc_shutdown_adapter(adapter);
 		return -ENODEV;
 	} else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d irq %d\n",
-			  adapter->instance, dev->irq);
-#else
 		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d irq %d\n",
 			  adapter->instance, i);	// dev->irq);     // pci_irq_vector(dev, 0));
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
-dev_info(&dev->dev, "msi_enabled %d, msix_enabled %d\n", dev->msi_enabled, dev->msix_enabled);
+	dev_info(&dev->dev, "msi_enabled %d, msix_enabled %d\n", dev->msi_enabled, dev->msix_enabled);
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-    hw->irq = dev->irq;
-#else
 	hw->irq = i;	// dev->irq;     // pci_irq_vector(dev, 0);
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
 
 	if ((*adapter->version->start_func)(adapter) != 0) {
 		/* Device initialization failed */
@@ -1017,16 +950,12 @@ rc_shutdown_adapter(rc_adapter_t *adapter)
 
 	rc_printk(RC_DEBUG, "%s: free_irq\n", __FUNCTION__);
 	if (adapter->hardware.irq)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-        free_irq(adapter->hardware.irq, adapter);
-#else
-        devm_free_irq(&adapter->pdev->dev, adapter->hardware.irq, adapter);
+		devm_free_irq(&adapter->pdev->dev, adapter->hardware.irq, adapter);
 
-    if (adapter->pdev->msi_enabled)
-        pci_disable_msi(adapter->pdev);
-    if (adapter->pdev->msix_enabled)
-        pci_disable_msix(adapter->pdev);
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
+	if (adapter->pdev->msi_enabled)
+		pci_disable_msi(adapter->pdev);
+	if (adapter->pdev->msix_enabled)
+		pci_disable_msix(adapter->pdev);
 
 	rc_printk(RC_DEBUG, "%s: unmap MMIO space 0x%px\n",
 		  __FUNCTION__, adapter->hardware.vaddr);
@@ -1298,9 +1227,7 @@ static int rcraid_resume_one(struct pci_dev *pdev)
  *     once for each adapter card.
  */
 void
-rcraid_shutdown_one(
-	struct pci_dev *pdev
-	)
+rcraid_shutdown_one(struct pci_dev *pdev)
 {
 	rc_adapter_t  *adapter = pci_get_drvdata(pdev);
 	if (rc_state.state & USE_OSIC) {
@@ -1365,18 +1292,8 @@ int rc_ahci_start(rc_adapter_t *adapter)
 int rc_ahci_shutdown(rc_adapter_t *adapter)
 {
 	rc_printk(RC_WARN, "%s\n",__FUNCTION__);
-    // devm_ functions handle the shutdown. If
-    // we do this, we'll see kernel errors/bugs.
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-	if  (adapter->hardware.irq) {
-		free_irq(adapter->hardware.irq, adapter);
-		adapter->hardware.irq = 0;
-		if (adapter->hardware.ismsi) {
-		  pci_disable_msi(adapter->pdev);
-		  adapter->hardware.ismsi = 0;
-		}
-	}
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
+	// devm_ functions handle the shutdown. If
+	// we do this, we'll see kernel errors/bugs.
 	return 0;
 }
 
@@ -1449,19 +1366,8 @@ int rc_nvme_start(rc_adapter_t *adapter)
 
 int rc_nvme_shutdown(rc_adapter_t *adapter)
 {
-    // devm_ functions handle the shutdown. If
-    // we do this, we'll see kernel errors/bugs.
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1)
-	rc_printk(RC_WARN, "%s\n",__FUNCTION__);
-	if  (adapter->hardware.irq) {
-		free_irq(adapter->hardware.irq, adapter);
-		adapter->hardware.irq = 0;
-		if (adapter->hardware.ismsi) {
-		  pci_disable_msi(adapter->pdev);
-		  adapter->hardware.ismsi = 0;
-		}
-	}
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3,8,1) */
+	// devm_ functions handle the shutdown. If
+	// we do this, we'll see kernel errors/bugs.
 	return 0;
 }
 
@@ -1519,7 +1425,6 @@ rc_eh_abort_cmd (struct scsi_cmnd * scp)
 
 	rc_printk(RC_ERROR, "rc_eh_abort_cmd: scp: 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
-	// rc_config_debug = 1;
 
   srb = rc_scsi_pointer(scp)->srb;
 	if (srb != NULL) {
@@ -1547,7 +1452,6 @@ rc_eh_dev_reset (struct scsi_cmnd *scp)
 
 	rc_printk(RC_ERROR, "rc_eh_dev_reset: scp 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
-	rc_config_debug = 1;
 	rc_dump_scp(scp);
 
 	return (SUCCESS);
@@ -1558,7 +1462,6 @@ rc_eh_bus_reset (struct scsi_cmnd *scp)
 {
 	rc_printk(RC_ERROR, "rc_eh_bus_reset: scp 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
-	rc_config_debug = 1;
 	rc_dump_scp(scp);
 
 	return (SUCCESS);
@@ -1576,43 +1479,6 @@ rc_eh_hba_reset (struct scsi_cmnd *scp)
 
 //=============================================================================
 //
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-
-static int
-rc_proc_read(char *buf, char **start, off_t offset, int buf_size, int *peof, void *data);
-
-static int
-rc_proc_write(struct file *file, const char __user *buf, unsigned long count, void *data);
-
-void rc_init_proc(void)
-{
-    rc_proc_entry_t *pe;
-    struct proc_dir_entry *pde;
-    int i;
-
-    if (!driver_template.proc_dir)
-    {
-        rc_printk(RC_ERROR, "rc_info: no entry for /proc/rcraid yet\n");
-    } else {
-        for (i = 0, pe = rc_proc_dir_entries;
-             i < sizeof(rc_proc_dir_entries) / sizeof(rc_proc_entry_t);
-             ++i, ++pe) {
-            if (!(pde = create_proc_entry(pe->name, pe->mode,
-                              driver_template.proc_dir)))
-                rc_printk(RC_ERROR, "rc_info: can't create entry for "
-                      "/proc/rcraid/%s\n", pe->name);
-            else {
-                pe->proc_dir = pde;
-                pde->read_proc = rc_proc_read;
-                pde->write_proc = rc_proc_write;
-                pde->data = (void *)pe;
-            }
-        }
-    }
-}
-
-#else
 
 static int rc_proc_show_int(struct seq_file *sfile, void *v)
 {
@@ -1649,16 +1515,6 @@ rc_proc_dipm_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_show_hex, &RC_EnableDIPM);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_dipm_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_dipm_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write	    = rc_proc_write_dipm,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_dipm_fops = {
 	.proc_open	= rc_proc_dipm_open,
 	.proc_read	= seq_read,
@@ -1666,7 +1522,6 @@ static const struct proc_ops rc_proc_dipm_fops = {
 	.proc_write	= rc_proc_write_dipm,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static ssize_t
@@ -1692,16 +1547,6 @@ rc_proc_hipm_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_show_hex, &RC_EnableHIPM);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_hipm_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_hipm_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write	    = rc_proc_write_hipm,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_hipm_fops = {
 	.proc_open	= rc_proc_hipm_open,
 	.proc_read	= seq_read,
@@ -1709,7 +1554,6 @@ static const struct proc_ops rc_proc_hipm_fops = {
 	.proc_write	= rc_proc_write_hipm,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static ssize_t
@@ -1750,16 +1594,6 @@ rc_proc_debug_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_debug_show, NULL);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_debug_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_debug_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write      = rc_proc_write_debug,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_debug_fops = {
 	.proc_open	= rc_proc_debug_open,
 	.proc_read	= seq_read,
@@ -1767,7 +1601,6 @@ static const struct proc_ops rc_proc_debug_fops = {
 	.proc_write	= rc_proc_write_debug,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static ssize_t
@@ -1802,16 +1635,6 @@ rc_proc_an_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_show_hex, &RC_EnableAN);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_an_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_an_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write	= rc_proc_write_an,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_an_fops = {
 	.proc_open	= rc_proc_an_open,
 	.proc_read	= seq_read,
@@ -1819,7 +1642,6 @@ static const struct proc_ops rc_proc_an_fops = {
 	.proc_write	= rc_proc_write_an,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static ssize_t
@@ -1855,16 +1677,6 @@ rc_proc_zpodd_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_show_hex, &RC_EnableZPODD);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_zpodd_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_zpodd_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write	    = rc_proc_write_zpodd,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_zpodd_fops = {
 	.proc_open	= rc_proc_zpodd_open,
 	.proc_read	= seq_read,
@@ -1872,7 +1684,6 @@ static const struct proc_ops rc_proc_zpodd_fops = {
 	.proc_write	= rc_proc_write_zpodd,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static ssize_t
@@ -1897,16 +1708,6 @@ rc_proc_delay_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_show_int, &rc_suspend_delay);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_delay_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_delay_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .write	    = rc_proc_write_delay,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_delay_fops = {
 	.proc_open	= rc_proc_delay_open,
 	.proc_read	= seq_read,
@@ -1914,7 +1715,6 @@ static const struct proc_ops rc_proc_delay_fops = {
 	.proc_write	= rc_proc_write_delay,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static int
@@ -1930,22 +1730,12 @@ rc_proc_version_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_version_show, NULL);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_version_fops = {
-    .owner      = THIS_MODULE,
-    .open       = rc_proc_version_open,
-    .read       = seq_read,
-    .llseek     = seq_lseek,
-    .release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_version_fops = {
 	.proc_open	= rc_proc_version_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static int
@@ -1975,33 +1765,19 @@ rc_proc_stats_open(struct inode *inode, struct file *file)
     return single_open(file, rc_proc_stats_show, NULL);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-static const struct file_operations rc_proc_stats_fops = {
-	.owner      = THIS_MODULE,
-	.open       = rc_proc_stats_open,
-	.read       = seq_read,
-	.llseek     = seq_lseek,
-	.release    = single_release,
-};
-#else
 static const struct proc_ops rc_proc_stats_fops = {
 	.proc_open	= rc_proc_stats_open,
 	.proc_read	= seq_read,
 	.proc_lseek	= seq_lseek,
 	.proc_release	= single_release,
 };
-#endif
 
 
 static struct proc_dir_entry *proc_parent = NULL;
 
 static const struct rc_proc_entry {
     const char                    *name;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5,6,0)
-    const struct file_operations  *fops;
-#else
     const struct proc_ops  *fops;
-#endif
 } rc_proc_entries[] = {
     { "dipm", &rc_proc_dipm_fops },
     { "hipm", &rc_proc_hipm_fops },
@@ -2061,7 +1837,6 @@ rc_remove_proc(void)
     }
 }
 
-#endif  /* LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0) */
 //
 //=============================================================================
 
@@ -2164,12 +1939,6 @@ rc_slave_cfg(struct scsi_device *sdev)
 
     state->osic_locked = 0;
     spin_unlock(&state->osic_lock);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-	if (sdev->tagged_supported)
-		scsi_adjust_queue_depth(sdev, MSG_ORDERED_TAG, tag_q_depth);
-	else
-		scsi_adjust_queue_depth(sdev, 0, 1);
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0) */
 
     if ((args.u.rc_scsi_info.value & 1) == 1)
     {
@@ -2188,17 +1957,10 @@ rc_slave_cfg(struct scsi_device *sdev)
 }
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-int
-rc_ioctl (struct scsi_device * scsi_dev_ptr,
-	  int cmd,
-	  void *arg)
-#else
 int
 rc_ioctl (struct scsi_device * scsi_dev_ptr,
 	  unsigned int cmd,
 	  void *arg)
-#endif
 {
 	char direction = 'w';
 
@@ -2242,50 +2004,6 @@ rc_printk(int flag, const char *fmt, ...)
 
 	newline_in_last_fmt = strchr(fmt, '\n') ? 1 : 0;
 }
-
-void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-rc_timeout_done(unsigned long data)
-{
-	rc_softstate_t *state;
-
-	state = (rc_softstate_t *)data;
-	init_timer(&state->rc_timeout);
-	up(&state->rc_timeout_sema);
-}
-#else
-rc_timeout_done(struct timer_list *t)
-{
-	rc_softstate_t	*state = from_timer(state, t, rc_timeout);
-	timer_setup(&state->rc_timeout, rc_timeout_done, 0);
-	up(&state->rc_timeout_sema);
-}
-#endif
-
-void
-rc_timeout(int to)
-{
-	rc_softstate_t *state;
-
-	state = &rc_state;
-	/*
-	 * set up timeout
-	 */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
-	init_timer(&state->rc_timeout);
-	state->rc_timeout.expires = jiffies  + to;
-	state->rc_timeout.data = (unsigned long)state;
-	state->rc_timeout.function = rc_timeout_done;
-	add_timer(&state->rc_timeout);
-#else
-	timer_setup(&state->rc_timeout, rc_timeout_done, 0);
-	mod_timer(&state->rc_timeout, jiffies + to);
-	printk("%s(): timer_setup(): state %px, timeout %ld\n", __FUNCTION__, state, jiffies + to);
-#endif
-	down(&state->rc_timeout_sema);
-}
-
 
 void
 rc_dump_scp(struct scsi_cmnd * scp)
@@ -2393,58 +2111,6 @@ static struct pci_driver rcraid_pci_driver = {
 #endif  /* CONFIG_PM */
 
 };
-
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 17, 0)
-u32
-rc_ahci_regread(void *context, u32 offset)
-{
-#if !defined(CONFIG_64BIT)
-    return *((volatile u32 *) (u32) offset);
-#else
-    return *((volatile u32 *) (u64) offset);
-#endif  /* !defined(CONFIG_64BIT) */
-}
-
-void
-rc_ahci_regwrite(void *context, u32 offset, u32 value)
-{
-#if !defined(CONFIG_64BIT)
-    *((volatile u32 *) (u32) offset) = value;
-#else
-    *((volatile u32 *) (u64) offset) = value;
-#endif  /* !defined(CONFIG_64BIT) */
-}
-#else
-u32
-rc_ahci_regread(void *context, u32 offset)
-{
-    rc_adapter_t    *adapter = (rc_adapter_t *) context;
-    void __iomem    *mmio;
-
-    if (adapter == NULL)
-        return (u32) -1;
-
-    mmio = adapter->hardware.vaddr;
-
-    if (mmio)
-        return readl(mmio + offset);
-    else
-        return (u32) -1;
-}
-
-void
-rc_ahci_regwrite(void *context, u32 offset, u32 value)
-{
-    rc_adapter_t    *adapter = (rc_adapter_t *) context;
-    void __iomem    *mmio = NULL;
-
-    if (adapter)
-        mmio = adapter->hardware.vaddr;
-
-    if (mmio)
-        writel(value, mmio + offset);
-}
-#endif  /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) */
 
 static struct ctl_table rcraid_table[] = {
 	{
