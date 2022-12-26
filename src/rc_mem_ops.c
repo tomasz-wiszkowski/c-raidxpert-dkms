@@ -20,28 +20,27 @@
  *
  ****************************************************************************/
 
-#include "linux/vmalloc.h"
-#include "linux/wait.h"
+#include "asm/page.h" /* need pfn_to_page() and other things */
+#include "linux/kthread.h"
 #include "linux/sched.h"
 #include "linux/string.h"
-#include "linux/kthread.h"
-#include "asm/page.h"        /* need pfn_to_page() and other things */
+#include "linux/vmalloc.h"
+#include "linux/wait.h"
 #ifdef CONFIG_SPARSEMEM
-#include "linux/mmzone.h"    /* pfn_to_page() could be here instead */
+#include "linux/mmzone.h" /* pfn_to_page() could be here instead */
 #endif
 #ifdef CONFIG_DISCONTIGMEM
-#include "asm/mmzone.h"        /* ...or even here */
+#include "asm/mmzone.h" /* ...or even here */
 #endif
 #if 0
 #include "asm/i387.h"
-#endif  /* 0 */
+#endif /* 0 */
 
 #ifdef CONFIG_HIGHMEM
 #include "asm/highmem.h"
 #endif
 
 #include "linux/signal.h"
-
 #include "rc.h"
 
 static rc_thread_t rc_thread[NR_CPUS];
@@ -55,25 +54,28 @@ static int rc_start_thread(int cpu);
 static void rc_stop_thread(int cpu);
 static void rc_wakeup_thread(int cpu);
 
-static int rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count);
+static int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src,
+			    int byte_count);
 static int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count);
 static int rc_kthread_mem_copy(rc_thread_t *tp, rc_mem_op_t *mop);
 static int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop);
 static int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
-    rc_uint64_t src, rc_uint32_t src_id, rc_uint32_t byte_count);
+			    rc_uint64_t src, rc_uint32_t src_id,
+			    rc_uint32_t byte_count);
 static int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
-    rc_uint32_t byte_count);
+			     rc_uint32_t byte_count);
 static rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap,
-    rc_uint32_t starting_elem, rc_uint32_t offset, rc_thread_buf_t *buf);
+				    rc_uint32_t starting_elem,
+				    rc_uint32_t offset, rc_thread_buf_t *buf);
 
 /* 2.6 added a new macro defined here for older kernel versions. */
 #ifndef for_each_online_cpu
-#define for_each_online_cpu(cpu)      for (cpu = 0; cpu < smp_num_cpus; cpu++)
+#define for_each_online_cpu(cpu) for (cpu = 0; cpu < smp_num_cpus; cpu++)
 #endif
 
 /* 2.6 removed cpu logical maps */
 #ifndef cpu_logical_map
-#define cpu_logical_map(cpu)        cpu
+#define cpu_logical_map(cpu) cpu
 #endif
 
 /*
@@ -81,80 +83,75 @@ static rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap,
  * backwards compatibility
  */
 #ifndef cpu_set
-#define cpu_set(cpu, dst)       dst |= 1UL << cpu
+#define cpu_set(cpu, dst) dst |= 1UL << cpu
 #endif
 
 #ifndef cpus_clear
-#define cpus_clear(dst)         dst = 0UL
+#define cpus_clear(dst) dst = 0UL
 #endif
 
-void
-rc_start_all_threads(void)
+void rc_start_all_threads(void)
 {
 	int cpu;
 
-	for_each_online_cpu(cpu)
-		rc_start_thread(cpu);
+	for_each_online_cpu(cpu) rc_start_thread(cpu);
 }
 
-void
-rc_stop_all_threads(void)
+void rc_stop_all_threads(void)
 {
 	int cpu;
 
-	for_each_online_cpu(cpu)
-		rc_stop_thread(cpu);
+	for_each_online_cpu(cpu) rc_stop_thread(cpu);
 }
 
-void
-rc_wakeup_all_threads(void)
+void rc_wakeup_all_threads(void)
 {
 	int cpu;
 
-	for_each_online_cpu(cpu)
-		rc_wakeup_thread(cpu);
+	for_each_online_cpu(cpu) rc_wakeup_thread(cpu);
 }
 
-int
-rc_start_thread(int cpu)
+int rc_start_thread(int cpu)
 {
 	rc_thread_t *tp;
 
 	tp = &rc_thread[cpu];
 
-	memset(tp,0, sizeof(rc_thread_t));
+	memset(tp, 0, sizeof(rc_thread_t));
 
-    sema_init(&tp->stop_sema, 0);
+	sema_init(&tp->stop_sema, 0);
 
-	tp->thread = kthread_create(rc_kthread, (void *) tp, "rc_kthread/%d", cpu);
+	tp->thread =
+		kthread_create(rc_kthread, (void *)tp, "rc_kthread/%d", cpu);
 	if (IS_ERR(tp->thread)) {
-		printk(KERN_ERR "rcraid: Unable to create thread for cpu %d.\n", cpu);
+		printk(KERN_ERR "rcraid: Unable to create thread for cpu %d.\n",
+		       cpu);
 		return 0;
 	}
 	/* lock this thread to the given cpu to allow sg list processing */
 	kthread_bind(tp->thread, cpu);
 	if (!wake_up_process(tp->thread)) {
-		printk(KERN_ERR "rcraid: Unable to wake up thread for cpu %d.\n", cpu);
+		printk(KERN_ERR
+		       "rcraid: Unable to wake up thread for cpu %d.\n",
+		       cpu);
 		return 0;
 	}
 	return 1;
 }
 
-void
-rc_stop_thread(int cpu)
+void rc_stop_thread(int cpu)
 {
 	rc_thread_t *tp;
 
 	tp = &rc_thread[cpu];
 	if (tp->thread) {
-        mb();
+		mb();
 		kthread_stop(tp->thread);
-        down(&tp->stop_sema);
+		down(&tp->stop_sema);
 	}
 }
 
-void
-rc_wakeup_thread(int cpu)
+void rc_wakeup_thread(int cpu)
 {
 	rc_thread_t *tp;
 
@@ -162,19 +159,17 @@ rc_wakeup_thread(int cpu)
 	wake_up_process(tp->thread);
 }
 
-int
-rc_kthread(void *rc_threadp)
+int rc_kthread(void *rc_threadp)
 {
-
-	int        cpu, status, i;
-	rc_thread_t    *tp;
-	rc_mem_op_t     *mop;
-	rc_softstate_t    *state;
-	unsigned long    irql;
+	int cpu, status, i;
+	rc_thread_t *tp;
+	rc_mem_op_t *mop;
+	rc_softstate_t *state;
+	unsigned long irql;
 
 	state = &rc_state;
 
-	tp = (rc_thread_t*)rc_threadp;
+	tp = (rc_thread_t *)rc_threadp;
 
 	cpu = tp - rc_thread;
 
@@ -201,7 +196,6 @@ rc_kthread(void *rc_threadp)
 			preempt_enable();
 
 			switch (mop->opcode) {
-
 			case RC_OP_MEM_LIST_COPY:
 				status = rc_kthread_mem_copy(tp, mop);
 				break;
@@ -210,27 +204,30 @@ rc_kthread(void *rc_threadp)
 			case RC_OP_MEM_LIST_CMP:
 			case RC_OP_MEM_CLEAR:
 			case RC_OP_MEM_COPY:
-				rc_printk(RC_ERROR, "rc_msg_mem_op: Unsupported memory "
-					  "operation- %d\n", mop->opcode);
+				rc_printk(RC_ERROR,
+					  "rc_msg_mem_op: Unsupported memory "
+					  "operation- %d\n",
+					  mop->opcode);
 				status = 0;
 				break;
-            case RC_OP_MEM_USER_COPY:
-                status = rc_kthread_mem_user_copy(tp, mop);
-                break;
+			case RC_OP_MEM_USER_COPY:
+				status = rc_kthread_mem_user_copy(tp, mop);
+				break;
 			default:
-				rc_printk(RC_ERROR, "rc_msg_mem_op: Invalid memory "
-					  "operation- %d\n", mop->opcode);
+				rc_printk(RC_ERROR,
+					  "rc_msg_mem_op: Invalid memory "
+					  "operation- %d\n",
+					  mop->opcode);
 				status = 0;
-
 			}
 
 			mop->status = status;
 			/*
-			 * Send a successfull response to the OSIC
-			 * We just internally queue the response and
-			 * let the tasklet send the response. Otherwise,
-			 * we'll block on the OSIC lock.
-			 */
+       * Send a successfull response to the OSIC
+       * We just internally queue the response and
+       * let the tasklet send the response. Otherwise,
+       * we'll block on the OSIC lock.
+       */
 			spin_lock_irqsave(&state->mop_done.lock, irql);
 
 			if (state->mop_done.head == (rc_mem_op_t *)0) {
@@ -246,22 +243,21 @@ rc_kthread(void *rc_threadp)
 
 			preempt_disable();
 			local_irq_save(irql);
-
 		}
 
 		local_irq_restore(irql);
 		preempt_enable();
 
-		RC_PRINTK(RC_DEBUG3,"rc_kthread: cpu %d thread sleeping\n", cpu);
+		RC_PRINTK(RC_DEBUG3, "rc_kthread: cpu %d thread sleeping\n",
+			  cpu);
 		tp->running = 0;
 
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (!tp->mop_head)
 			schedule_timeout(MAX_SCHEDULE_TIMEOUT);
 
-
 		tp->running = 1;
-		RC_PRINTK(RC_DEBUG3,"rc_kthread: cpu %d thread awake\n", cpu);
+		RC_PRINTK(RC_DEBUG3, "rc_kthread: cpu %d thread awake\n", cpu);
 
 	} while (!kthread_should_stop());
 
@@ -271,25 +267,23 @@ rc_kthread(void *rc_threadp)
 		}
 	}
 
-	rc_printk(RC_INFO,"rc_kthread: cpu %d thread stopped\n", cpu);
+	rc_printk(RC_INFO, "rc_kthread: cpu %d thread stopped\n", cpu);
 
-    mb();
+	mb();
 
-    up(&tp->stop_sema);
+	up(&tp->stop_sema);
 
 	return 1;
 }
 
-
-static __inline__ int
-rc_sg_list_size( rc_sg_list_t *src)
+static __inline__ int rc_sg_list_size(rc_sg_list_t *src)
 {
 	int i, size;
 
 	size = 0;
 
 	if (!src) {
-		rc_printk(RC_ERROR,"rc_sg_list_size: src == 0\n");
+		rc_printk(RC_ERROR, "rc_sg_list_size: src == 0\n");
 		return 0;
 	}
 
@@ -298,142 +292,141 @@ rc_sg_list_size( rc_sg_list_t *src)
 	return size;
 }
 
-
 #undef min
-#define min(a,b) ((a) < (b) ? (a) : (b))
-
+#define min(a, b) ((a) < (b) ? (a) : (b))
 
 /*
  * clear memory described by dst list.
  * if the map function fails, the whole clear fails
  */
-int
-rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
+int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
 {
-	int    dst_idx;
-	int    dst_cnt;
-	int    dst_mapped;    /* amount of sg list element currently mapped */
-	int    dst_offset;    /* offset into current element */
-	dma_addr_t    dst_dma_addr;
-	unsigned char    *dst_vaddr;
-	struct page     *dst_page;
-	int    xfer_cnt;
-	int    residual;
-	int    offset, size, pfn;
+	int dst_idx;
+	int dst_cnt;
+	int dst_mapped; /* amount of sg list element currently mapped */
+	int dst_offset; /* offset into current element */
+	dma_addr_t dst_dma_addr;
+	unsigned char *dst_vaddr;
+	struct page *dst_page;
+	int xfer_cnt;
+	int residual;
+	int offset, size, pfn;
 
 	dst_cnt = rc_sg_list_size(dst);
 
 	if (byte_count > dst_cnt) {
-		rc_printk(RC_ERROR, "rc_mem_clear_list, count %d dst_count %d\n",
+		rc_printk(RC_ERROR,
+			  "rc_mem_clear_list, count %d dst_count %d\n",
 			  byte_count, dst_cnt);
 		BUG();
 	}
 
-	dst_idx       = 0;
-	dst_mapped    = 0;
-	dst_offset    = 0;
-	dst_dma_addr  = 0;
-	dst_vaddr     = (unsigned char *)0;
-	dst_page      = (struct page *)0;
+	dst_idx = 0;
+	dst_mapped = 0;
+	dst_offset = 0;
+	dst_dma_addr = 0;
+	dst_vaddr = (unsigned char *)0;
+	dst_page = (struct page *)0;
 
 	residual = byte_count;
 
-
 	while (residual > 0) {
-
 		if (dst_mapped == 0) {
 			if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
-				dst_dma_addr = dst->sg_elem[dst_idx].dma_paddr + dst_offset;
-				offset = dst_dma_addr & (PAGE_SIZE-1);
+				dst_dma_addr = dst->sg_elem[dst_idx].dma_paddr +
+					       dst_offset;
+				offset = dst_dma_addr & (PAGE_SIZE - 1);
 
 				size = dst->sg_elem[dst_idx].size - dst_offset;
 				size = min(size, PAGE_SIZE - offset);
 
 				pfn = dst_dma_addr >> PAGE_SHIFT;
 				dst_page = pfn_to_page(pfn);
-                dst_vaddr = kmap_atomic(dst_page);
+				dst_vaddr = kmap_atomic(dst_page);
 				if (dst_vaddr == 0)
 					return 0;
 
 				dst_vaddr += offset;
 				dst_mapped = size;
 				dst_offset = dst_offset + size;
-				RC_PRINTK(RC_DEBUG3, "dst[%d]: dma_addr 0x%llx size 0x%x "
-					  "map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
-					  dst_idx, (rc_uint64_t)dst_dma_addr, size,
-					  pfn << PAGE_SHIFT, dst_vaddr, dst_offset, dst_mapped);
-			}
-			else if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+				RC_PRINTK(
+					RC_DEBUG3,
+					"dst[%d]: dma_addr 0x%llx size 0x%x "
+					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
+					dst_idx, (rc_uint64_t)dst_dma_addr,
+					size, pfn << PAGE_SHIFT, dst_vaddr,
+					dst_offset, dst_mapped);
+			} else if ((dst->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				dst_vaddr = dst->sg_elem[dst_idx].v_addr;
 				dst_mapped = dst->sg_elem[dst_idx].size;
-				rc_printk(RC_DEBUG3, "dst[%d]: vaddr %px size: %x\n", dst_idx,
-					  dst_vaddr, dst_mapped);
-			}
-			else
+				rc_printk(RC_DEBUG3,
+					  "dst[%d]: vaddr %px size: %x\n",
+					  dst_idx, dst_vaddr, dst_mapped);
+			} else
 				BUG();
 		}
 
 		xfer_cnt = min(residual, dst_mapped);
 
-		RC_PRINTK(RC_DEBUG3, "rc_mem_clear_list: clearing %x bytes at %px\n",
+		RC_PRINTK(RC_DEBUG3,
+			  "rc_mem_clear_list: clearing %x bytes at %px\n",
 			  xfer_cnt, dst_vaddr);
 
 		memset(dst_vaddr, 0, xfer_cnt);
 
 		dst_mapped -= xfer_cnt;
-		residual   -= xfer_cnt;
+		residual -= xfer_cnt;
 
 		if (dst_mapped == 0) {
 			if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 				if (dst_page)
-                    kunmap_atomic(dst_vaddr);
+					kunmap_atomic(dst_vaddr);
 				dst_page = (struct page *)0;
 				if (dst_offset == dst->sg_elem[dst_idx].size) {
 					dst_idx++;
 					dst_offset = 0;
 				}
-			} else  if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+			} else if ((dst->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				dst_idx++;
 			} else
 				BUG();
 		} else
 			dst_vaddr += xfer_cnt;
-
 	}
 
 	if (dst_page)
-        kunmap_atomic(dst_vaddr);
+		kunmap_atomic(dst_vaddr);
 	if (residual)
-		rc_printk(RC_PANIC, "rc_mem_clear_list: residual is not 0 at end "
+		rc_printk(RC_PANIC,
+			  "rc_mem_clear_list: residual is not 0 at end "
 			  "of loop\n");
 
 	return 1;
 }
-
 
 /*
  * copy memory described by src list to dst list.
  * if the map function fails, the whole copy fails
  * and it will have to be rescheduled
  */
-int
-rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
+int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 {
-
-	int    src_idx,    dst_idx;
-	int    src_cnt,    dst_cnt;
+	int src_idx, dst_idx;
+	int src_cnt, dst_cnt;
 	/* amount of sg list element currently mapped */
-	int    src_mapped, dst_mapped;
+	int src_mapped, dst_mapped;
 	/* offset into current element */
-	int    src_offset, dst_offset;
-	dma_addr_t    src_dma_addr,  dst_dma_addr;
-	unsigned char    *src_vaddr,  *dst_vaddr;
-	struct page     *src_page, *dst_page;
-	int    xfer_cnt;
-	int    residual;
-	int    offset, size, pfn;
-	int	ret = 1;
-	void	*vret;
+	int src_offset, dst_offset;
+	dma_addr_t src_dma_addr, dst_dma_addr;
+	unsigned char *src_vaddr, *dst_vaddr;
+	struct page *src_page, *dst_page;
+	int xfer_cnt;
+	int residual;
+	int offset, size, pfn;
+	int ret = 1;
+	void *vret;
 
 	src_cnt = rc_sg_list_size(src);
 	dst_cnt = rc_sg_list_size(dst);
@@ -450,38 +443,37 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 		BUG();
 	}
 
-	src_idx       = 0;
-	dst_idx       = 0;
-	src_mapped    = 0;
-	dst_mapped    = 0;
-	src_offset    = 0;
-	dst_offset    = 0;
-	src_dma_addr  = 0;
-	dst_dma_addr  = 0;
-	src_vaddr     = (unsigned char *)0;
-	dst_vaddr     = (unsigned char *)0;
-	src_page      = (struct page *)0;
-	dst_page      = (struct page *)0;
+	src_idx = 0;
+	dst_idx = 0;
+	src_mapped = 0;
+	dst_mapped = 0;
+	src_offset = 0;
+	dst_offset = 0;
+	src_dma_addr = 0;
+	dst_dma_addr = 0;
+	src_vaddr = (unsigned char *)0;
+	dst_vaddr = (unsigned char *)0;
+	src_page = (struct page *)0;
+	dst_page = (struct page *)0;
 
 	residual = byte_count;
 
-
 	while (residual > 0) {
-
 		if (src_mapped == 0) {
 			if ((src->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
-				src_dma_addr = src->sg_elem[src_idx].dma_paddr + src_offset;
-				offset = src_dma_addr & (PAGE_SIZE-1);
+				src_dma_addr = src->sg_elem[src_idx].dma_paddr +
+					       src_offset;
+				offset = src_dma_addr & (PAGE_SIZE - 1);
 
 				size = src->sg_elem[src_idx].size - src_offset;
 				size = min(size, PAGE_SIZE - offset);
 
 				pfn = src_dma_addr >> PAGE_SHIFT;
 				src_page = pfn_to_page(pfn);
-                src_vaddr = kmap_atomic(src_page);
+				src_vaddr = kmap_atomic(src_page);
 				if (src_vaddr == 0) {
 					if (dst_page)
-                        kunmap_atomic(dst_vaddr);
+						kunmap_atomic(dst_vaddr);
 					ret = 0;
 					goto out;
 				}
@@ -489,39 +481,41 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 				src_vaddr += offset;
 				src_mapped = size;
 				src_offset = src_offset + size;
-				RC_PRINTK(RC_DEBUG3, "%s: src[%d]: dma_addr 0x%llx size 0x%x "
-					  "map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
-					  __FUNCTION__,
-					  src_idx, (rc_uint64_t)src_dma_addr, size,
-					  pfn << PAGE_SHIFT, src_vaddr, src_offset, src_mapped);
-			}
-			else if ((src->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+				RC_PRINTK(
+					RC_DEBUG3,
+					"%s: src[%d]: dma_addr 0x%llx size 0x%x "
+					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
+					__FUNCTION__, src_idx,
+					(rc_uint64_t)src_dma_addr, size,
+					pfn << PAGE_SHIFT, src_vaddr,
+					src_offset, src_mapped);
+			} else if ((src->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				src_vaddr = src->sg_elem[src_idx].v_addr;
 				src_mapped = src->sg_elem[src_idx].size;
-				RC_PRINTK(RC_DEBUG3, "%s: src[%d]: vaddr %px size %x\n",
-					  __FUNCTION__,
-					  src_idx,
-					  src_vaddr, src_mapped);
-			}
-			else
+				RC_PRINTK(RC_DEBUG3,
+					  "%s: src[%d]: vaddr %px size %x\n",
+					  __FUNCTION__, src_idx, src_vaddr,
+					  src_mapped);
+			} else
 				BUG();
-
 		}
 
 		if (dst_mapped == 0) {
 			if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
-				dst_dma_addr = dst->sg_elem[dst_idx].dma_paddr + dst_offset;
-				offset = dst_dma_addr & (PAGE_SIZE-1);
+				dst_dma_addr = dst->sg_elem[dst_idx].dma_paddr +
+					       dst_offset;
+				offset = dst_dma_addr & (PAGE_SIZE - 1);
 
 				size = dst->sg_elem[dst_idx].size - dst_offset;
 				size = min(size, PAGE_SIZE - offset);
 
 				pfn = dst_dma_addr >> PAGE_SHIFT;
 				dst_page = pfn_to_page(pfn);
-                dst_vaddr = kmap_atomic(dst_page);
+				dst_vaddr = kmap_atomic(dst_page);
 				if (dst_vaddr == 0) {
 					if (src_page)
-                        kunmap_atomic(src_vaddr);
+						kunmap_atomic(src_vaddr);
 					ret = 0;
 					goto out;
 				}
@@ -529,52 +523,52 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 				dst_vaddr += offset;
 				dst_mapped = size;
 				dst_offset = dst_offset + size;
-				RC_PRINTK(RC_DEBUG3, "%s: dst[%d]: dma_addr 0x%llx size 0x%x "
-					  "map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
-					  __FUNCTION__,
-					  dst_idx, (rc_uint64_t)dst_dma_addr, size,
-					  pfn << PAGE_SHIFT, dst_vaddr, dst_offset,
-					  dst_mapped);
-			}
-			else if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+				RC_PRINTK(
+					RC_DEBUG3,
+					"%s: dst[%d]: dma_addr 0x%llx size 0x%x "
+					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
+					__FUNCTION__, dst_idx,
+					(rc_uint64_t)dst_dma_addr, size,
+					pfn << PAGE_SHIFT, dst_vaddr,
+					dst_offset, dst_mapped);
+			} else if ((dst->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				dst_vaddr = dst->sg_elem[dst_idx].v_addr;
 				dst_mapped = dst->sg_elem[dst_idx].size;
-				rc_printk(RC_DEBUG3, "%s: dst[%d]: vaddr %px size: 0x%x\n",
-					  __FUNCTION__,
-					  dst_idx,
-					  dst_vaddr, dst_mapped);
-			}
-			else
+				rc_printk(RC_DEBUG3,
+					  "%s: dst[%d]: vaddr %px size: 0x%x\n",
+					  __FUNCTION__, dst_idx, dst_vaddr,
+					  dst_mapped);
+			} else
 				BUG();
 		}
-
 
 		xfer_cnt = min(src_mapped, dst_mapped);
 		xfer_cnt = min(residual, xfer_cnt);
 		RC_PRINTK(RC_DEBUG3, "%s: moving %x bytes from %px to %px\n",
-			  __FUNCTION__,
-			  xfer_cnt,src_vaddr, dst_vaddr);
+			  __FUNCTION__, xfer_cnt, src_vaddr, dst_vaddr);
 
 		// Note: preempt disable may no longer be needed now that a straight
 		//       memcpy() is used instead of MMX assembly for the copy
-		vret = memcpy( dst_vaddr, src_vaddr, xfer_cnt);
+		vret = memcpy(dst_vaddr, src_vaddr, xfer_cnt);
 		if (!ret)
 			BUG();
 
 		src_mapped -= xfer_cnt;
 		dst_mapped -= xfer_cnt;
-		residual   -= xfer_cnt;
+		residual -= xfer_cnt;
 
 		if (src_mapped == 0) {
 			if ((src->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 				if (src_page)
-                    kunmap_atomic(src_vaddr);
+					kunmap_atomic(src_vaddr);
 				src_page = (struct page *)0;
 				if (src_offset == src->sg_elem[src_idx].size) {
 					src_idx++;
 					src_offset = 0;
 				}
-			} else if ((src->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+			} else if ((src->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				src_idx++;
 			} else
 				BUG();
@@ -584,35 +578,36 @@ rc_mem_copy_list ( rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 		if (dst_mapped == 0) {
 			if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 				if (dst_page)
-                    kunmap_atomic(dst_vaddr);
+					kunmap_atomic(dst_vaddr);
 				dst_page = (struct page *)0;
 				if (dst_offset == dst->sg_elem[dst_idx].size) {
 					dst_idx++;
 					dst_offset = 0;
 				}
-			} else  if ((dst->sg_mem_type & MEM_TYPE) == RC_MEM_VADDR) {
+			} else if ((dst->sg_mem_type & MEM_TYPE) ==
+				   RC_MEM_VADDR) {
 				dst_idx++;
 			} else
 				BUG();
 		} else
 			dst_vaddr += xfer_cnt;
-
 	}
 out:
 
 	if (src_page)
-        kunmap_atomic(src_vaddr);
+		kunmap_atomic(src_vaddr);
 	if (dst_page)
-        kunmap_atomic(dst_vaddr);
+		kunmap_atomic(dst_vaddr);
 	if (residual)
-		rc_printk(RC_PANIC, "rc_mem_copy_list: residual is not 0 at end of "
+		rc_printk(RC_PANIC,
+			  "rc_mem_copy_list: residual is not 0 at end of "
 			  "loop\n");
 
 	return ret;
 }
 
 #ifndef virt_addr_valid
-#define virt_addr_valid(kaddr)   pfn_valid(__pa(kaddr) >> PAGE_SHIFT)
+#define virt_addr_valid(kaddr) pfn_valid(__pa(kaddr) >> PAGE_SHIFT)
 #endif
 
 /*
@@ -620,54 +615,52 @@ out:
  * based on the memory type.  Returns 1 if the address is good
  * or 0 if an error is found.
  */
-static rc_uint32_t
-rc_check_addr_one(rc_uint64_t addr, rc_uint32_t id, rc_uint32_t    byte_count)
+static rc_uint32_t rc_check_addr_one(rc_uint64_t addr, rc_uint32_t id,
+				     rc_uint32_t byte_count)
 {
 	rc_uint32_t status = 0;
 
 	id &= MEM_TYPE;
 
 	if (id != RC_MEM_VADDR && id != RC_MEM_PADDR) {
-		rc_printk(RC_ERROR,
-			  "rc_check_addr_one: Bad memory type %x\n", id);
+		rc_printk(RC_ERROR, "rc_check_addr_one: Bad memory type %x\n",
+			  id);
 		return status;
 	}
 
 	if (id == RC_MEM_VADDR) {
 		void *vaddr = ((addr_elem_t)addr).virt_addr;
-		if ( ((unsigned long)vaddr < VMALLOC_START ||
-		      (unsigned long)vaddr >= VMALLOC_END) &&
-		     !virt_addr_valid(vaddr) ) {
-			rc_printk(RC_PANIC,
-				  "rc_check_addr_one: Invalid virtual address - %px\n",
-				  vaddr);
+		if (((unsigned long)vaddr < VMALLOC_START ||
+		     (unsigned long)vaddr >= VMALLOC_END) &&
+		    !virt_addr_valid(vaddr)) {
+			rc_printk(
+				RC_PANIC,
+				"rc_check_addr_one: Invalid virtual address - %px\n",
+				vaddr);
 			return status;
 		}
-	}
-	else { /* Physical address */
+	} else { /* Physical address */
 		rc_uint64_t paddr = ((addr_elem_t)addr).phys_addr;
 		unsigned long long pfn = paddr >> PAGE_SHIFT;
 		if (!pfn_valid(pfn)) {
-			rc_printk(RC_PANIC,
-				  "rc_check_addr_one: Invalid physical address - 0x%llx\n",
-				  paddr);
+			rc_printk(
+				RC_PANIC,
+				"rc_check_addr_one: Invalid physical address - 0x%llx\n",
+				paddr);
 			return status;
 		}
 	}
 
 	status = 1;
 	return status;
-
 }
-
 
 /*
  * Sanity checks a address list structure making sure all the
  * addresses are reasonable based on the memory type. Returns
  * 1 if the list is good or 0 if an error is found.
  */
-static rc_uint32_t
-rc_check_addr_list(rc_addr_list_t *addr_list)
+static rc_uint32_t rc_check_addr_list(rc_addr_list_t *addr_list)
 {
 	int i;
 	rc_uint16_t mem_type;
@@ -684,29 +677,36 @@ rc_check_addr_list(rc_addr_list_t *addr_list)
 
 	for (ap = addr_list; ap; ap = ap->next) {
 		if (ap->mem_elem_count > RC_SINGLE_IO_ADDRESS_COUNT) {
-			rc_printk(RC_ERROR, "rc_check_addr_list: Element count too large "
-				  "- %u\n", addr_list->mem_elem_count);
+			rc_printk(RC_ERROR,
+				  "rc_check_addr_list: Element count too large "
+				  "- %u\n",
+				  addr_list->mem_elem_count);
 			return status;
 		}
 
 		for (i = 0; i < ap->mem_elem_count; i++) {
-
 			if (mem_type == RC_MEM_VADDR) {
 				void *vaddr = ap->sg_list[i].v_addr;
-				if ( ((unsigned long)vaddr < VMALLOC_START ||
-				      (unsigned long)vaddr >= VMALLOC_END) &&
-				     !virt_addr_valid(vaddr) ) {
-					rc_printk(RC_PANIC, "rc_check_addr_list: Invalid virtual "
-						  "address - %px\n", vaddr);
+				if (((unsigned long)vaddr < VMALLOC_START ||
+				     (unsigned long)vaddr >= VMALLOC_END) &&
+				    !virt_addr_valid(vaddr)) {
+					rc_printk(
+						RC_PANIC,
+						"rc_check_addr_list: Invalid virtual "
+						"address - %px\n",
+						vaddr);
 					return status;
 				}
-			}
-			else { /* Physical address */
-				unsigned long long pfn = addr_list->sg_list[i].dma_paddr >>
+			} else { /* Physical address */
+				unsigned long long pfn =
+					addr_list->sg_list[i].dma_paddr >>
 					PAGE_SHIFT;
 				if (!pfn_valid(pfn)) {
-					rc_printk(RC_PANIC, "rc_check_addr_list: Invalid physical "
-						  "address - 0x%llu\n", ap->sg_list[i].dma_paddr);
+					rc_printk(
+						RC_PANIC,
+						"rc_check_addr_list: Invalid physical "
+						"address - 0x%llu\n",
+						ap->sg_list[i].dma_paddr);
 					return status;
 				}
 			}
@@ -717,9 +717,7 @@ rc_check_addr_list(rc_addr_list_t *addr_list)
 	return status;
 }
 
-
-static int __inline__
-rc_addr_list_elements( rc_addr_list_t  *ap)
+static int __inline__ rc_addr_list_elements(rc_addr_list_t *ap)
 {
 	int num_elem;
 
@@ -731,15 +729,13 @@ rc_addr_list_elements( rc_addr_list_t  *ap)
 	return num_elem;
 }
 
-
 /*
  * determine the size of the src and dst arrays.
  * allocate memory big enough to hold all the lists
  * convert the lists from a chained list to arrays
  * enqueue the mememory operation to be done by the rcraid mem_op thread
  */
-void
-rc_msg_mem_op(rc_mem_op_t *mop)
+void rc_msg_mem_op(rc_mem_op_t *mop)
 {
 	int cpu, i;
 	unsigned long irql;
@@ -747,39 +743,49 @@ rc_msg_mem_op(rc_mem_op_t *mop)
 	rc_uint32_t status = 1;
 
 	if (rc_msg_level >= RC_DEBUG) {
-
 		switch (mop->opcode) {
-
 		case RC_OP_MEM_LIST_COPY:
-			status &= rc_check_addr_list(mop->mem.list->dst_addr_list);
-			status &= rc_check_addr_list(mop->mem.list->src.addr_list);
+			status &= rc_check_addr_list(
+				mop->mem.list->dst_addr_list);
+			status &= rc_check_addr_list(
+				mop->mem.list->src.addr_list);
 			break;
 
 		case RC_OP_MEM_LIST_XOR:
-			status &= rc_check_addr_list(mop->mem.list->dst_addr_list);
+			status &= rc_check_addr_list(
+				mop->mem.list->dst_addr_list);
 			for (i = 0; i < mop->mem.list->array_count; i++)
-				status &=
-					rc_check_addr_list(mop->mem.list->src.addr_list_array[i]);
-			rc_printk(RC_ERROR, "rc_msg_mem_op: Unsupported memory operation- "
-				  "%d\n", mop->opcode);
+				status &= rc_check_addr_list(
+					mop->mem.list->src.addr_list_array[i]);
+			rc_printk(
+				RC_ERROR,
+				"rc_msg_mem_op: Unsupported memory operation- "
+				"%d\n",
+				mop->opcode);
 			status = 0;
 			break;
 
 		case RC_OP_MEM_LIST_CMP:
 			for (i = 0; i < mop->mem.list->array_count; i++)
-				status &=
-					rc_check_addr_list(mop->mem.list->src.addr_list_array[i]);
-			rc_printk(RC_ERROR, "rc_msg_mem_op: Unsupported memory operation- "
-				  "%d\n", mop->opcode);
+				status &= rc_check_addr_list(
+					mop->mem.list->src.addr_list_array[i]);
+			rc_printk(
+				RC_ERROR,
+				"rc_msg_mem_op: Unsupported memory operation- "
+				"%d\n",
+				mop->opcode);
 			status = 0;
 			break;
 
 		case RC_OP_MEM_COPY:
-			status &= rc_check_addr_one(mop->mem.cp.dst, mop->mem.cp.dst_id,
+			status &= rc_check_addr_one(mop->mem.cp.dst,
+						    mop->mem.cp.dst_id,
 						    mop->mem.cp.byte_count);
-			status &= rc_check_addr_one(mop->mem.cp.src, mop->mem.cp.src_id,
+			status &= rc_check_addr_one(mop->mem.cp.src,
+						    mop->mem.cp.src_id,
 						    mop->mem.cp.byte_count);
-			rc_printk(RC_DEBUG2, "RC_MEM_COPY: dst %llx id %x src %llx id %x "
+			rc_printk(RC_DEBUG2,
+				  "RC_MEM_COPY: dst %llx id %x src %llx id %x "
 				  "count %x status1 %i\n",
 				  mop->mem.cp.dst, mop->mem.cp.dst_id,
 				  mop->mem.cp.src, mop->mem.cp.src_id,
@@ -787,47 +793,53 @@ rc_msg_mem_op(rc_mem_op_t *mop)
 			break;
 
 		case RC_OP_MEM_CLEAR:
-			status &= rc_check_addr_one(mop->mem.clr.dst, mop->mem.clr.dst_id,
+			status &= rc_check_addr_one(mop->mem.clr.dst,
+						    mop->mem.clr.dst_id,
 						    mop->mem.clr.byte_count);
-			rc_printk(RC_DEBUG2, "RC_MEM_CLEAR: dst %llx id %x count %x "
-				  "status1 %i\n", mop->mem.clr.dst, mop->mem.clr.dst_id,
+			rc_printk(RC_DEBUG2,
+				  "RC_MEM_CLEAR: dst %llx id %x count %x "
+				  "status1 %i\n",
+				  mop->mem.clr.dst, mop->mem.clr.dst_id,
 				  mop->mem.clr.byte_count, status);
 			break;
-        case RC_OP_MEM_USER_COPY:
-            rc_printk(RC_DEBUG2, "RC_MEM_USER_COPY\n");
-            break;
+		case RC_OP_MEM_USER_COPY:
+			rc_printk(RC_DEBUG2, "RC_MEM_USER_COPY\n");
+			break;
 		default:
-			rc_printk(RC_ERROR, "rc_msg_mem_op: Invalid memory operation- %d\n",
-				  mop->opcode);
+			rc_printk(
+				RC_ERROR,
+				"rc_msg_mem_op: Invalid memory operation- %d\n",
+				mop->opcode);
 			status = 0;
-
 		}
 	}
 
 	mop->status = status;
 
 	if (status) {
-
 		switch (mop->opcode) {
-
 		case RC_OP_MEM_COPY:
-			mop->status = rc_sync_mem_copy(mop->mem.cp.dst, mop->mem.cp.dst_id,
-						       mop->mem.cp.src, mop->mem.cp.src_id,
+			mop->status = rc_sync_mem_copy(mop->mem.cp.dst,
+						       mop->mem.cp.dst_id,
+						       mop->mem.cp.src,
+						       mop->mem.cp.src_id,
 						       mop->mem.cp.byte_count);
-			RC_PRINTK(RC_DEBUG2, "RC_MEM_COPY: status2 %d\n", mop->status);
+			RC_PRINTK(RC_DEBUG2, "RC_MEM_COPY: status2 %d\n",
+				  mop->status);
 			break;
 
 		case RC_OP_MEM_CLEAR:
-			mop->status = rc_sync_mem_clear(mop->mem.clr.dst,
-							mop->mem.clr.dst_id,
-							mop->mem.clr.byte_count);
-			RC_PRINTK(RC_DEBUG2, "RC_MEM_COPY: status2 %d\n", mop->status);
+			mop->status = rc_sync_mem_clear(
+				mop->mem.clr.dst, mop->mem.clr.dst_id,
+				mop->mem.clr.byte_count);
+			RC_PRINTK(RC_DEBUG2, "RC_MEM_COPY: status2 %d\n",
+				  mop->status);
 			break;
-        case RC_OP_MEM_USER_COPY:
+		case RC_OP_MEM_USER_COPY:
 		default:
 			/*
-			 * queue the morb to the correct cpu
-			 */
+       * queue the morb to the correct cpu
+       */
 			preempt_disable();
 			cpu = smp_processor_id();
 			tp = &rc_thread[cpu];
@@ -856,8 +868,7 @@ rc_msg_mem_op(rc_mem_op_t *mop)
 }
 
 // STATS
-int
-rc_mop_stats(char *buf, int buf_size)
+int rc_mop_stats(char *buf, int buf_size)
 {
 	int cnt, len;
 	rc_softstate_t *state;
@@ -868,32 +879,35 @@ rc_mop_stats(char *buf, int buf_size)
 	state = &rc_state;
 	sp = &state->stats;
 
-
 	cnt = 0;
 	cp = buf;
 
-	len = snprintf(cp, buf_size - cnt, "\nExternal memory opeations\nCPU     ");
-	cp  += len;
+	len = snprintf(cp, buf_size - cnt,
+		       "\nExternal memory opeations\nCPU     ");
+	cp += len;
 	cnt += len;
 
-	for_each_online_cpu(cpu)  {
+	for_each_online_cpu(cpu)
+	{
 		len = snprintf(cp, buf_size - cnt, "%8d  ", cpu);
-		cp  += len;
+		cp += len;
 		cnt += len;
 	}
 
 	len = snprintf(cp, buf_size - cnt, "\nPending  ");
-	cp  += len;
+	cp += len;
 	cnt += len;
 
-	for_each_online_cpu(cpu)  {
-		len = snprintf(cp, buf_size - cnt, "%8d  ", rc_thread[cpu].num_mop);
-		cp  += len;
+	for_each_online_cpu(cpu)
+	{
+		len = snprintf(cp, buf_size - cnt, "%8d  ",
+			       rc_thread[cpu].num_mop);
+		cp += len;
 		cnt += len;
 	}
 
 	len = snprintf(cp, buf_size - cnt, "\n");
-	cp  += len;
+	cp += len;
 	cnt += len;
 	*cp = '\0';
 
@@ -905,10 +919,8 @@ rc_mop_stats(char *buf, int buf_size)
  * to do the work.  Return 1 on success, 0 if the copy failed
  * for any reason.
  */
-int
-rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
-		 rc_uint64_t src, rc_uint32_t src_id,
-		 rc_uint32_t byte_count)
+int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id, rc_uint64_t src,
+		     rc_uint32_t src_id, rc_uint32_t byte_count)
 {
 	rc_sg_list_t dst_sg, src_sg;
 
@@ -928,7 +940,7 @@ rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
 	else /* physical */
 		src_sg.sg_elem[0].dma_paddr = ((addr_elem_t)src).phys_addr;
 
-	return rc_mem_copy_list (&dst_sg, &src_sg, byte_count);
+	return rc_mem_copy_list(&dst_sg, &src_sg, byte_count);
 }
 
 /*
@@ -936,9 +948,8 @@ rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
  * to do the work.  Return 1 on success, 0 if the copy failed
  * for any reason.
  */
-int
-rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
-		  rc_uint32_t byte_count)
+int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
+		      rc_uint32_t byte_count)
 {
 	rc_sg_list_t dst_sg;
 
@@ -950,17 +961,13 @@ rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
 	else /* physical */
 		dst_sg.sg_elem[0].dma_paddr = ((addr_elem_t)dst).phys_addr;
 
-	return rc_mem_clear_list (&dst_sg, byte_count);
+	return rc_mem_clear_list(&dst_sg, byte_count);
 }
 
 /* Flattens an address list and copies it to a scatter/gather list. */
-rc_sg_list_t *
-rc_mem_sg_list(rc_addr_list_t *ap,
-	       rc_uint32_t starting_elem,
-	       rc_uint32_t offset,
-	       rc_thread_buf_t *buf)
+rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap, rc_uint32_t starting_elem,
+			     rc_uint32_t offset, rc_thread_buf_t *buf)
 {
-
 	int i, indx = 0;
 	int elems = rc_addr_list_elements(ap);
 	int size = sizeof(rc_sg_list_t) + (elems - 1) * sizeof(rc_sg_elem_t);
@@ -978,13 +985,11 @@ rc_mem_sg_list(rc_addr_list_t *ap,
 	sg->sg_mem_type = ap->mem_id;
 
 	if (starting_elem || offset) {
-
-		rc_sg_elem_t *ep= &ap->sg_list[starting_elem];
+		rc_sg_elem_t *ep = &ap->sg_list[starting_elem];
 
 		if ((sg->sg_mem_type & MEM_TYPE) == RC_MEM_PADDR) {
 			sg->sg_elem[indx].dma_paddr = ep->dma_paddr + offset;
-		}
-		else {
+		} else {
 			sg->sg_elem[indx].v_addr = ep->v_addr + offset;
 		}
 
@@ -993,8 +998,8 @@ rc_mem_sg_list(rc_addr_list_t *ap,
 		indx++;
 	}
 
-	while(ap) {
-		for ( i = starting_elem ; i < ap->mem_elem_count; i++) {
+	while (ap) {
+		for (i = starting_elem; i < ap->mem_elem_count; i++) {
 			sg->sg_elem[indx].addr = ap->sg_list[i].addr;
 			sg->sg_elem[indx].size = ap->sg_list[i].size;
 			indx++;
@@ -1002,56 +1007,51 @@ rc_mem_sg_list(rc_addr_list_t *ap,
 		}
 		ap = ap->next;
 		starting_elem = 0;
-
 	}
 	sg->sg_num_elem = indx;
 
 	return sg;
 }
 
-
 /*
  * Converts a memory operation structure to a memory copy request structure.
  */
-int
-rc_kthread_mem_copy(rc_thread_t    *tp, rc_mem_op_t *mop)
+int rc_kthread_mem_copy(rc_thread_t *tp, rc_mem_op_t *mop)
 {
 	rc_sg_list_t *dst, *src;
 	int byte_count;
 
 	dst = rc_mem_sg_list(mop->mem.list->dst_addr_list,
 			     mop->mem.list->dst_element,
-			     mop->mem.list->dst_offset,
-			     &tp->buf[0]);
+			     mop->mem.list->dst_offset, &tp->buf[0]);
 
 	src = rc_mem_sg_list(mop->mem.list->src.addr_list,
 			     mop->mem.list->src_element,
-			     mop->mem.list->src_offset,
-			     &tp->buf[1]);
+			     mop->mem.list->src_offset, &tp->buf[1]);
 
 	byte_count = mop->mem.list->sector_count << 9;
 
-	return rc_mem_copy_list (dst, src, byte_count);
+	return rc_mem_copy_list(dst, src, byte_count);
 }
 
-int
-rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop)
+int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop)
 {
-	void* src;
-    void* dst;
-    unsigned long numberOfBytes=0, byte_count=0;;
+	void *src;
+	void *dst;
+	unsigned long numberOfBytes = 0, byte_count = 0;
+	;
 
-    src = (void *) (uintptr_t) mop->mem.cp.src;
-    dst = (void *) (uintptr_t) mop->mem.cp.dst;
-    byte_count = mop->mem.cp.byte_count;
+	src = (void *)(uintptr_t)mop->mem.cp.src;
+	dst = (void *)(uintptr_t)mop->mem.cp.dst;
+	byte_count = mop->mem.cp.byte_count;
 
-    numberOfBytes = copy_to_user( dst, src, byte_count);
+	numberOfBytes = copy_to_user(dst, src, byte_count);
 
-    if (numberOfBytes) {
-        RC_PRINTK(RC_ERROR, "rc_kthread_mem_user_copy: %d\n", (int)numberOfBytes);
-        return 0;
-    }
-    else {
-        return 1;
-    }
+	if (numberOfBytes) {
+		RC_PRINTK(RC_ERROR, "rc_kthread_mem_user_copy: %d\n",
+			  (int)numberOfBytes);
+		return 0;
+	} else {
+		return 1;
+	}
 }

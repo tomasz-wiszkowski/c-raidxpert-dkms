@@ -22,15 +22,15 @@
 #define RC_TYPES_PLATFORM_H
 #ifndef __BCM_BASETYPES_H__
 
-typedef unsigned char		rc_uint8_t;
-typedef unsigned short		rc_uint16_t;
-typedef unsigned int		rc_uint32_t;
-typedef int			rc_int32_t;
+typedef unsigned char rc_uint8_t;
+typedef unsigned short rc_uint16_t;
+typedef unsigned int rc_uint32_t;
+typedef int rc_int32_t;
 
 #ifndef __LINUX__
 typedef unsigned __int64 rc_uint64_t;
 #else
-typedef unsigned long long  rc_uint64_t;
+typedef unsigned long long rc_uint64_t;
 #endif
 
 typedef void *rc_uint_ptr_t;

@@ -9,7 +9,7 @@
 *   Copyright (c) 2006-2008, Ciprico Inc.  All rights reserved.
 *   Copyright (c) 2008-2013, Dot Hill Systems Corp.  All rights reserved.
 *
-\****************************************************************************/ 
+\****************************************************************************/
 
 #ifndef _RC_BUILD_NUMBER_H
 #define _RC_BUILD_NUMBER_H
@@ -49,12 +49,11 @@ extern char *RC_BUILD_MONDAYYEAR;
 // be sure these this length matches that of the strings
 // RC_BUILD_NUMBER_MARK_[BEGIN,END] in rc_build_number.cpp
 // (length does not include null terminator)
-#define RC_BUILD_NUMBER_MARK_LENGTH     7
+#define RC_BUILD_NUMBER_MARK_LENGTH 7
 
 // put back what was undone
 #ifdef _RC_BUILD_NUMBER_H_EXTERN
 #define extern _RC_BUILD_NUMBER_H_EXTERN
 #endif
-
 
 #endif //_RC_BUILD_NUMBER_H

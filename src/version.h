@@ -11,7 +11,7 @@
 *   Copyright (c) 2015 Seagate All rights reserved.
 *   Copyright (c) 2017-2021, Advanced Micro Devices.  All rights reserved.
 *
-\****************************************************************************/ 
+\****************************************************************************/
 
 #ifndef _RC_VERSION_H
 #define _RC_VERSION_H
@@ -27,33 +27,37 @@
 
 #define RC_STRINGIFY(s) #s
 
-#define RC_VERSION_STR RC_MK_BUILD_VER(RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, RC_BUILD_VER_PATCH)
+#define RC_VERSION_STR                                          \
+	RC_MK_BUILD_VER(RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, \
+			RC_BUILD_VER_PATCH)
 
+#define RC_MK_BUILD_VER(RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, \
+			RC_BUILD_VER_PATCH)                     \
+	RC_STRINGIFY(RC_BUILD_VER_MAJOR)                        \
+	"." RC_STRINGIFY(RC_BUILD_VER_MINOR) "." RC_STRINGIFY(  \
+		RC_BUILD_VER_PATCH)
 
-#define RC_MK_BUILD_VER(RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, RC_BUILD_VER_PATCH) \
-                  RC_STRINGIFY(RC_BUILD_VER_MAJOR)"." \
-                  RC_STRINGIFY(RC_BUILD_VER_MINOR)"." \
-                  RC_STRINGIFY(RC_BUILD_VER_PATCH) 
-
-#define VER_COMPANYNAME_STR       "Advanced Micro Devices, Inc."
-#define VER_PRODUCT_STR           "AMD-RAID"
-#define VER_PRODUCT_STR_NO_TM     "AMD-RAID"
-#define VER_PRODUCT_STR_WIN_DESC  "AMD-RAID Controller [storport] Device Driver"
+#define VER_COMPANYNAME_STR "Advanced Micro Devices, Inc."
+#define VER_PRODUCT_STR "AMD-RAID"
+#define VER_PRODUCT_STR_NO_TM "AMD-RAID"
+#define VER_PRODUCT_STR_WIN_DESC "AMD-RAID Controller [storport] Device Driver"
 
 #define VER_GUI_PRODUCT_STR_NO_TM "RAIDXpert2"
 
-#define VER_AHCI_STR              "AHCI"
-#define VER_MPT_STR               "LSI1068"
-#define VER_MPT2_STR              "LSI2008"
-#define VER_NVME_STR              "NVMe"
-#define VER_LEGALCOPYRIGHT_STR    "Copyright (c)2012-2021 Advanced Micro Devices, Inc."
+#define VER_AHCI_STR "AHCI"
+#define VER_MPT_STR "LSI1068"
+#define VER_MPT2_STR "LSI2008"
+#define VER_NVME_STR "NVMe"
+#define VER_LEGALCOPYRIGHT_STR \
+	"Copyright (c)2012-2021 Advanced Micro Devices, Inc."
 
-#define VER_LEGALCOPYRIGHT_YEARS  "2012-2021"
-#define VER_PRODUCTVERSION_STR    RC_BUILD_NUMBER
-#define VER_LEGALTRADEMARKS_STR   ""
+#define VER_LEGALCOPYRIGHT_YEARS "2012-2021"
+#define VER_PRODUCTVERSION_STR RC_BUILD_NUMBER
+#define VER_LEGALTRADEMARKS_STR ""
 
-#define VER_FILEVERSION           RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, RC_BUILD_VER_PATCH, RC_BUILD_COUNT
-#define VER_FILEVERSION_STR       RC_BUILD_NUMBER
-
+#define VER_FILEVERSION                                             \
+	RC_BUILD_VER_MAJOR, RC_BUILD_VER_MINOR, RC_BUILD_VER_PATCH, \
+		RC_BUILD_COUNT
+#define VER_FILEVERSION_STR RC_BUILD_NUMBER
 
 #endif //_RC_VERSION_H

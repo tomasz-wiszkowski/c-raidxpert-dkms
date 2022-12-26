@@ -63,37 +63,36 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define GET_IO_REQUEST_LOCK_IRQSAVE(i)
 #define PUT_IO_REQUEST_LOCK_IRQRESTORE(i)
 
-
 #include "rc_types_platform.h"
 #include "rc_srb.h"
 #include "rc_scsi.h"
 #include "rc_msg_platform.h"
 #include "rc_adapter.h"
 
-typedef enum
-{
+typedef enum {
 	RC_PANIC = 0,
 	RC_ALERT,
 	RC_CRITICAL,
 	RC_ERROR,
 	RC_WARN,
-	RC_NOTE,      // 5
+	RC_NOTE, // 5
 	RC_INFO,
 	RC_INFO2,
 	RC_DEBUG,
 	RC_DEBUG2,
-	RC_DEBUG3,    // 10
+	RC_DEBUG3, // 10
 	RC_TAIL
 } rc_print_lvl_t;
 
 #define RC_DEFAULT_ERR_LEVEL RC_INFO
 
 void rc_printk(int flag, const char *fmt, ...)
-	__attribute__ ((format (printf, 2, 3)));
+	__attribute__((format(printf, 2, 3)));
 
 /* Fast version of rc_printk for use in data path. */
-#define RC_PRINTK(flag, fmt, ...)					\
-	if (flag <= rc_msg_level) rc_printk(flag, fmt, __VA_ARGS__);
+#define RC_PRINTK(flag, fmt, ...) \
+	if (flag <= rc_msg_level) \
+		rc_printk(flag, fmt, __VA_ARGS__);
 
 #ifdef RC_SW_DEBUG
 #define RC_ASSERT(cond) BUG_ON(!(cond))
@@ -107,29 +106,29 @@ void rc_event(rc_uint32_t type, rc_uint8_t bus, int update_mode);
 int rc_event_init(void);
 void rc_event_shutdown(void);
 
-extern rc_softstate_t       rc_state;
-extern rc_adapter_t       *rc_dev[];
-extern int            rc_msg_level;
+extern rc_softstate_t rc_state;
+extern rc_adapter_t *rc_dev[];
+extern int rc_msg_level;
 
 typedef struct _rc_work {
-    struct _rc_work         *next;
-    unsigned int            call_type;
-    char                    *method;
-    acpi_handle             handle;
-    void                    *args;
+	struct _rc_work *next;
+	unsigned int call_type;
+	char *method;
+	acpi_handle handle;
+	void *args;
 } rc_work_t;
 
-extern struct task_struct       *rc_wq;
-extern rc_work_t                *acpi_work_item_head;
-extern rc_work_t                *acpi_work_item_tail;
-extern spinlock_t               acpi_work_item_lock;
+extern struct task_struct *rc_wq;
+extern rc_work_t *acpi_work_item_head;
+extern rc_work_t *acpi_work_item_tail;
+extern spinlock_t acpi_work_item_lock;
 
 //
 // If we can't find the GPE from the _PSW method, then we'll default
 // to this value. Doesn't seem to be any standard and it depends solely
 // on the vendor.
 //
-#define RC_DEFAULT_ZPODD_GPE_NUMBER     6
+#define RC_DEFAULT_ZPODD_GPE_NUMBER 6
 
 acpi_status rc_acpi_evaluate_object(acpi_handle, char *, void *, int *);
 
@@ -138,35 +137,34 @@ extern unsigned int RC_ODD_Device;
 extern unsigned int RC_ODD_GpeNumber;
 
 enum {
-    RC_ODD_DEVICE_INVALID = 0,
-    RC_ODD_DEVICE_ODDZ,
-    RC_ODD_DEVICE_ODDL,
-    RC_ODD_DEVICE_ODD8
+	RC_ODD_DEVICE_INVALID = 0,
+	RC_ODD_DEVICE_ODDZ,
+	RC_ODD_DEVICE_ODDL,
+	RC_ODD_DEVICE_ODD8
 };
 
 //
 // Pulled from rc_mem_ops.c
 //
-#define RC_THREAD_BUF_CNT  16
+#define RC_THREAD_BUF_CNT 16
 
 typedef struct {
-        rc_sg_list_t *sg;
-        int          size;
+	rc_sg_list_t *sg;
+	int size;
 } rc_thread_buf_t;
 
 typedef struct rc_thread_s {
-        struct task_struct *thread;
-        int                running;
-        volatile int       num_mop;
-        rc_mem_op_t       *mop_head;
-        rc_mem_op_t       *mop_tail;
-        /* 0 is destination list, 1-15 are sources. */
-        rc_thread_buf_t    buf[RC_THREAD_BUF_CNT];
-    struct semaphore    stop_sema;
+	struct task_struct *thread;
+	int running;
+	volatile int num_mop;
+	rc_mem_op_t *mop_head;
+	rc_mem_op_t *mop_tail;
+	/* 0 is destination list, 1-15 are sources. */
+	rc_thread_buf_t buf[RC_THREAD_BUF_CNT];
+	struct semaphore stop_sema;
 } rc_thread_t;
 
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 #define DEVICE_ACPI_HANDLE(dev) ((acpi_handle)ACPI_HANDLE(dev))
 #endif
 
@@ -176,23 +174,25 @@ typedef struct rc_thread_s {
 
 #include <linux/efi.h>
 
-#define NVME_TRAP_DEVICE_VAR_GUID       \
-        EFI_GUID(0x4b2865c3, 0x8722, 0x45db, 0xaa, 0x7b, 0xf9, 0xe1, 0xc1, 0xb1, 0x8d, 0x34)
+#define NVME_TRAP_DEVICE_VAR_GUID                                          \
+	EFI_GUID(0x4b2865c3, 0x8722, 0x45db, 0xaa, 0x7b, 0xf9, 0xe1, 0xc1, \
+		 0xb1, 0x8d, 0x34)
 
 typedef struct {
-        uint16_t        VendorId;
-        uint16_t        DeviceId;
-        uint8_t         Bus;
-        uint8_t         Device;
-        uint8_t         Function;
-        uint8_t         _rsv0;
+	uint16_t VendorId;
+	uint16_t DeviceId;
+	uint8_t Bus;
+	uint8_t Device;
+	uint8_t Function;
+	uint8_t _rsv0;
 } NVME_TRAP_DEVICE;
 
-#define check_lock(sp) {						\
-		if (sp->osic_locked) {					\
-			rc_printk(RC_WARN, "%s: osic already locked by %s\n", __FUNCTION__, \
-				  sp->osic_lock_holder);		\
-			panic("osic_lock already held\n");		\
-		}							\
+#define check_lock(sp)                                                        \
+	{                                                                     \
+		if (sp->osic_locked) {                                        \
+			rc_printk(RC_WARN, "%s: osic already locked by %s\n", \
+				  __FUNCTION__, sp->osic_lock_holder);        \
+			panic("osic_lock already held\n");                    \
+		}                                                             \
 	}
 #endif // _RC_OSHEADERS_H_

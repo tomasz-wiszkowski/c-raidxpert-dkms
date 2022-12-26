@@ -5,20 +5,18 @@
  *
  ****************************************************************************/
 
-#include <linux/module.h>
-#include <linux/fs.h>
-#include <linux/miscdevice.h>
-#include <linux/sched.h>
-#include <linux/completion.h>
-#include <linux/gfp_types.h>
-
-#include <linux/vmalloc.h>
-#include <linux/slab.h>
-#include <linux/pagemap.h>
-#include <linux/interrupt.h>
 #include <linux/compat.h>
-#include <linux/pci.h>          // struct msix_entry
-
+#include <linux/completion.h>
+#include <linux/fs.h>
+#include <linux/gfp_types.h>
+#include <linux/interrupt.h>
+#include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/pagemap.h>
+#include <linux/pci.h> // struct msix_entry
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
 
@@ -30,31 +28,28 @@ extern int rc_srb_seq_num;
 
 static struct semaphore rccfg_wait;
 
-static void
-rccfg_callback (rc_srb_t *srb)
+static void rccfg_callback(rc_srb_t *srb)
 {
 	up(&rccfg_wait);
 }
 
-static int
-rccfg_io(struct sg_io_hdr *hdr)
+static int rccfg_io(struct sg_io_hdr *hdr)
 {
-
-	rc_srb_t	*srb;
-	rc_softstate_t	*state;
-	int              sg_list_size;
-	int		 size;
-	void	        *data;
-	rc_sg_list_t    *rc_sg;
-	int		 i = 0;
-	int		 err = 0;
-	unsigned long    irql;
-    rc_uint32_t target;
+	rc_srb_t *srb;
+	rc_softstate_t *state;
+	int sg_list_size;
+	int size;
+	void *data;
+	rc_sg_list_t *rc_sg;
+	int i = 0;
+	int err = 0;
+	unsigned long irql;
+	rc_uint32_t target;
 
 	mutex_lock(&ioctl_mutex);
 	state = &rc_state;
 	sg_list_size = sizeof(rc_sg_list_t) +
-		(RC_SG_MAX_ELEMENTS-1) * sizeof(rc_sg_elem_t);
+		       (RC_SG_MAX_ELEMENTS - 1) * sizeof(rc_sg_elem_t);
 	size = sizeof(rc_srb_t) + sg_list_size + state->memsize_per_srb;
 
 	if (hdr->dxfer_len)
@@ -62,70 +57,70 @@ rccfg_io(struct sg_io_hdr *hdr)
 		default:
 			return -EINVAL;
 		case SG_DXFER_TO_DEV:
-			//writing = 1;
+			// writing = 1;
 			break;
 		case SG_DXFER_TO_FROM_DEV:
 		case SG_DXFER_FROM_DEV:
 			break;
 		}
 
-	if ((srb =  kmalloc( size, GFP_ATOMIC)) == 0) {
-		if ((srb = kmalloc( size << 1, GFP_ATOMIC)) == 0) {
+	if ((srb = kmalloc(size, GFP_ATOMIC)) == 0) {
+		if ((srb = kmalloc(size << 1, GFP_ATOMIC)) == 0) {
 			printk("rc_msg_send_srb: could not alloc %d bytes for"
-			       " srb\n", size);
+			       " srb\n",
+			       size);
 			return -ENOMEM;
 		}
 	}
 	memset(srb, 0, size);
 
-    target = 24; // hack alert
-	srb->function     = RC_SRB_EXECUTE_SCSI;
-	srb->status       = RC_SRB_STATUS_SUCCESS;
-	srb->bus          = 0;
-	srb->target       = target;
-	srb->lun          = 0;
+	target = 24; // hack alert
+	srb->function = RC_SRB_EXECUTE_SCSI;
+	srb->status = RC_SRB_STATUS_SUCCESS;
+	srb->bus = 0;
+	srb->target = target;
+	srb->lun = 0;
 	switch (hdr->dxfer_direction) {
 	case SG_DXFER_TO_DEV:
-		srb->flags    = RC_SRB_FLAGS_DATA_IN;
-        break;
+		srb->flags = RC_SRB_FLAGS_DATA_IN;
+		break;
 	case SG_DXFER_TO_FROM_DEV:
 	case SG_DXFER_FROM_DEV:
-		srb->flags    = RC_SRB_FLAGS_DATA_OUT;
-        break;
+		srb->flags = RC_SRB_FLAGS_DATA_OUT;
+		break;
 	}
 
-	if(!(srb->cdb = kmalloc(hdr->cmd_len, GFP_NOWAIT)) ) {
+	if (!(srb->cdb = kmalloc(hdr->cmd_len, GFP_NOWAIT))) {
 		err = -ENOMEM;
 		goto out_srb_free;
 	}
 
-	if(copy_from_user(srb->cdb, hdr->cmdp, hdr->cmd_len)) {
+	if (copy_from_user(srb->cdb, hdr->cmdp, hdr->cmd_len)) {
 		err = -EFAULT;
 		goto out_cdb_free;
 	}
-	srb->cdb_len      = hdr->cmd_len;
+	srb->cdb_len = hdr->cmd_len;
 
-
-	srb->data_len     = hdr->dxfer_len;
-	srb->cdb_len      = hdr->cmd_len;
-	srb->sense_len    = hdr->mx_sb_len;
+	srb->data_len = hdr->dxfer_len;
+	srb->cdb_len = hdr->cmd_len;
+	srb->sense_len = hdr->mx_sb_len;
 	srb->scsi_context = NULL;
-	srb->sg_list      = (rc_sg_list_t *)&srb->private32[0];
-	srb->dev_private  = (char *)srb->sg_list + sg_list_size;
-	srb->timeout      = 30;
-	srb->seq_num      = rc_srb_seq_num++;
-	srb->callback     = rccfg_callback;
+	srb->sg_list = (rc_sg_list_t *)&srb->private32[0];
+	srb->dev_private = (char *)srb->sg_list + sg_list_size;
+	srb->timeout = 30;
+	srb->seq_num = rc_srb_seq_num++;
+	srb->callback = rccfg_callback;
 
 	sema_init(&rccfg_wait, 0);
 
-	if(!(data = vmalloc(hdr->dxfer_len))) {
+	if (!(data = vmalloc(hdr->dxfer_len))) {
 		err = -ENOMEM;
 		goto out_cdb_free;
 	}
 	memset(data, 0, hdr->dxfer_len);
 
 	/* always copy data in from user */
-	if(copy_from_user(data, hdr->dxferp, hdr->dxfer_len)) {
+	if (copy_from_user(data, hdr->dxferp, hdr->dxfer_len)) {
 		err = -EFAULT;
 		goto out_data_free;
 	}
@@ -155,17 +150,17 @@ rccfg_io(struct sg_io_hdr *hdr)
 
 	tasklet_schedule(&state->srb_q.tasklet);
 
-        // wait for callback completion
+	// wait for callback completion
 	down(&rccfg_wait);
 
 	/* copy the srb status back into the sg hdr status
-	 * this is appear to all that the user space uses
-	 * for error reporting, but it might need sense data
-	 * at some point
-	 */
+   * this is appear to all that the user space uses
+   * for error reporting, but it might need sense data
+   * at some point
+   */
 	hdr->status = srb->status;
 
-	if(copy_to_user(hdr->dxferp, data, hdr->dxfer_len)) {
+	if (copy_to_user(hdr->dxferp, data, hdr->dxfer_len)) {
 		err = -EFAULT;
 		goto out_data_free;
 	}
@@ -181,8 +176,7 @@ out_srb_free:
 	return err;
 }
 
-struct sg_io_hdr32
-{
+struct sg_io_hdr32 {
 	int interface_id;
 	int dxfer_direction;
 	unsigned char cmd_len;
@@ -207,8 +201,7 @@ struct sg_io_hdr32
 	unsigned int info;
 };
 
-static long
-rccfg_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
+static long rccfg_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	void __user *argp = (void __user *)arg;
@@ -232,13 +225,13 @@ rccfg_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 }
 
 #ifdef CONFIG_COMPAT
-static long
-rccfg_compat_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
+static long rccfg_compat_ioctl(struct file *filp, unsigned int cmd,
+			       unsigned long arg)
 {
 	int err = 0;
 	void __user *argp = (void __user *)arg;
 	struct sg_io_hdr32 hdr;
-	struct sg_io_hdr   hdr_native;
+	struct sg_io_hdr hdr_native;
 
 	switch (cmd) {
 	case SG_IO:
@@ -247,31 +240,31 @@ rccfg_compat_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 			break;
 
 		/*
-		 * move all the fields over manually, specfically converting
-		 * the 32 bit ptrs to native pointers
-		 */
-		hdr_native.interface_id		= hdr.interface_id;
-		hdr_native.dxfer_direction	= hdr.dxfer_direction;
-		hdr_native.cmd_len		= hdr.cmd_len;
-		hdr_native.mx_sb_len		= hdr.mx_sb_len;
-		hdr_native.iovec_count		= hdr.iovec_count;
-		hdr_native.dxfer_len		= hdr.dxfer_len;
-		hdr_native.dxferp		= compat_ptr(hdr.dxferp);
-		hdr_native.cmdp			= compat_ptr(hdr.cmdp);
-		hdr_native.sbp			= compat_ptr(hdr.sbp);
-		hdr_native.timeout		= hdr.timeout;
-		hdr_native.flags                = hdr.flags;
-		hdr_native.pack_id		= hdr.pack_id;
-		hdr_native.usr_ptr		= compat_ptr(hdr.usr_ptr);
-		hdr_native.status               = hdr.status;
-		hdr_native.masked_status	= hdr.masked_status;
-		hdr_native.msg_status           = hdr.msg_status;
-		hdr_native.sb_len_wr            = hdr.sb_len_wr;
-		hdr_native.host_status		= hdr.host_status;
-		hdr_native.driver_status	= hdr.driver_status;
-		hdr_native.resid                = hdr.resid;
-		hdr_native.duration             = hdr.duration;
-		hdr_native.info                 = hdr.info;
+     * move all the fields over manually, specfically converting
+     * the 32 bit ptrs to native pointers
+     */
+		hdr_native.interface_id = hdr.interface_id;
+		hdr_native.dxfer_direction = hdr.dxfer_direction;
+		hdr_native.cmd_len = hdr.cmd_len;
+		hdr_native.mx_sb_len = hdr.mx_sb_len;
+		hdr_native.iovec_count = hdr.iovec_count;
+		hdr_native.dxfer_len = hdr.dxfer_len;
+		hdr_native.dxferp = compat_ptr(hdr.dxferp);
+		hdr_native.cmdp = compat_ptr(hdr.cmdp);
+		hdr_native.sbp = compat_ptr(hdr.sbp);
+		hdr_native.timeout = hdr.timeout;
+		hdr_native.flags = hdr.flags;
+		hdr_native.pack_id = hdr.pack_id;
+		hdr_native.usr_ptr = compat_ptr(hdr.usr_ptr);
+		hdr_native.status = hdr.status;
+		hdr_native.masked_status = hdr.masked_status;
+		hdr_native.msg_status = hdr.msg_status;
+		hdr_native.sb_len_wr = hdr.sb_len_wr;
+		hdr_native.host_status = hdr.host_status;
+		hdr_native.driver_status = hdr.driver_status;
+		hdr_native.resid = hdr.resid;
+		hdr_native.duration = hdr.duration;
+		hdr_native.info = hdr.info;
 
 		err = rccfg_io(&hdr_native);
 		if (err == -EFAULT)
@@ -288,15 +281,14 @@ rccfg_compat_ioctl(struct file * filp, unsigned int cmd, unsigned long arg)
 #define rccfg_compat_ioctl NULL
 #endif
 
-
 static struct file_operations rccfg_fops = {
-	.owner		= THIS_MODULE,
-	.unlocked_ioctl	= rccfg_ioctl,
-	.compat_ioctl	= rccfg_compat_ioctl,
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = rccfg_ioctl,
+	.compat_ioctl = rccfg_compat_ioctl,
 };
 
 struct miscdevice rccfg_api_dev = {
-	.minor  =  MISC_DYNAMIC_MINOR,
-	.name   = "rc_api",
-	.fops   = &rccfg_fops,
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "rc_api",
+	.fops = &rccfg_fops,
 };
