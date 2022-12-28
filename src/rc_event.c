@@ -106,28 +106,28 @@ void rc_event(u32 type, u8 bus, int update_mode)
 
 	switch (type) {
 	case RC_CTR_EVENT_CONFIG_CHANGE_DETECTED:
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: rc_event: config change detected on bus "
 			  "%d\n",
 			  bus);
 		break;
 
 	case RC_CTR_EVENT_CONFIG_ARRAY_OFFLINE:
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: rc_event: array offline detected on bus "
 			  "%d\n",
 			  bus);
 		break;
 
 	case RC_CTR_EVENT_CONFIG_DISK_OFFLINE:
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: rc_event: drive offline detected on bus "
 			  "%d\n",
 			  bus);
 		break;
 
 	default:
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "rcraid: rc_event: unknown event 0x%x detected on "
 			  "bus %d\n",
 			  type, bus);
@@ -135,8 +135,8 @@ void rc_event(u32 type, u8 bus, int update_mode)
 	}
 
 	if ((srb = kmalloc(sizeof(rc_srb_t), GFP_ATOMIC)) == 0) {
-		rc_printk(RC_WARN, "rc_event: could not alloc mem for srb\n");
-		rc_printk(RC_WARN, "rc_event: config change not processed\n");
+		RC_PRINTK(RC_WARN, "rc_event: could not alloc mem for srb\n");
+		RC_PRINTK(RC_WARN, "rc_event: config change not processed\n");
 		return;
 	}
 
@@ -196,7 +196,7 @@ static void rc_cfg_change_detect(u32 type, u32 bus, int update_mode)
 {
 	unsigned int i;
 
-	rc_printk(RC_DEBUG, "rc_cfg_change_detect type 0x%x bus %d\n", type,
+	RC_PRINTK(RC_DEBUG, "rc_cfg_change_detect type 0x%x bus %d\n", type,
 		  bus);
 
 	for (i = 0; i <= RC_MAX_SCSI_TARGETS; i++) {
@@ -221,7 +221,7 @@ static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode)
 	state = &rc_state;
 
 	if (bus > 0 || target > RC_MAX_SCSI_TARGETS || lun > 0) {
-		rc_printk(RC_INFO2, "rc_send_inq: invalid B/T/L %d/%d/%d\n",
+		RC_PRINTK(RC_INFO2, "rc_send_inq: invalid B/T/L %d/%d/%d\n",
 			  bus, target, lun);
 		return;
 	}
@@ -230,7 +230,7 @@ static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode)
 		       (RC_SG_MAX_ELEMENTS - 1) * sizeof(rc_sg_elem_t);
 	size = sizeof(rc_srb_t) + sg_list_size + state->memsize_per_srb;
 	if ((srb = kmalloc(size, GFP_ATOMIC | GFP_DMA)) == 0) {
-		rc_printk(RC_WARN, "%s: could not alloc %d bytes for srb\n",
+		RC_PRINTK(RC_WARN, "%s: could not alloc %d bytes for srb\n",
 			  __FUNCTION__, size);
 		return;
 	}
@@ -238,7 +238,7 @@ static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode)
 
 	size = sizeof(inq_cmd_t) + sizeof(rc_inq_data_t);
 	if ((inq_cmd = kmalloc(size, GFP_ATOMIC | GFP_DMA)) == 0) {
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "%s: could not alloc mem for inquiry command and "
 			  "data\n",
 			  __FUNCTION__);
@@ -287,7 +287,7 @@ static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode)
 	sg->sg_elem[0].size = sizeof(rc_inq_data_t);
 	sg->sg_elem[0].v_addr = inq_data;
 
-	rc_printk(RC_DEBUG3, "rc_send_inq: seq_num: %d B/T/L %d/%d/%d\n",
+	RC_PRINTK(RC_DEBUG3, "rc_send_inq: seq_num: %d B/T/L %d/%d/%d\n",
 		  srb->seq_num, bus, target, lun);
 
 	/*
@@ -326,7 +326,7 @@ static void rc_inq_callback(rc_srb_t *srb)
 	int do_wakeup;
 	rc_event_thread_t *tp = &rc_event_thread;
 
-	rc_printk(RC_DEBUG3, "rc_inq_callback: target %d, \n", srb->target);
+	RC_PRINTK(RC_DEBUG3, "rc_inq_callback: target %d, \n", srb->target);
 
 	srb->next = (rc_srb_t *)0;
 	spin_lock_irqsave(&tp->cfg_change_response.lock, irql);
@@ -361,7 +361,7 @@ static int rc_event_kthread(void *rc_threadp)
 	state = &rc_state;
 	tp = (rc_event_thread_t *)rc_threadp;
 
-	rc_printk(RC_DEBUG3, "rcraid: rc_event_kthread thread started\n");
+	RC_PRINTK(RC_DEBUG3, "rcraid: rc_event_kthread thread started\n");
 
 	do {
 		spin_lock_irqsave(&tp->cfg_change_response.lock, irql);
@@ -383,17 +383,17 @@ static int rc_event_kthread(void *rc_threadp)
 
 		spin_unlock_irqrestore(&tp->cfg_change_response.lock, irql);
 
-		// rc_printk(RC_DEBUG3,"rc_event_thread: sleeping\n");
+		// RC_PRINTK(RC_DEBUG3,"rc_event_thread: sleeping\n");
 		tp->running = 0;
 
 		schedule_timeout_interruptible(MAX_SCHEDULE_TIMEOUT);
 
 		tp->running = 1;
-		// rc_printk(RC_DEBUG3,"rc_event_kthread: awake\n");
+		// RC_PRINTK(RC_DEBUG3,"rc_event_kthread: awake\n");
 
 	} while (!kthread_should_stop());
 
-	rc_printk(RC_INFO, "rcraid: rc_event_kthread stopped\n");
+	RC_PRINTK(RC_INFO, "rcraid: rc_event_kthread stopped\n");
 	return 1;
 }
 
@@ -459,7 +459,7 @@ static void rc_cfg_change_response(struct rc_srb_s *srb)
 		break;
 	}
 
-	rc_printk(RC_DEBUG, "rc_cfg_change_response B/T/L %d/%d/%d  %s\n", bus,
+	RC_PRINTK(RC_DEBUG, "rc_cfg_change_response B/T/L %d/%d/%d  %s\n", bus,
 		  target, lun, msg);
 
 	/* device present status changed */
@@ -471,12 +471,12 @@ static void rc_cfg_change_response(struct rc_srb_s *srb)
 		 * array is deleted, then we will remove the scsi device.
 		 */
 		if (!present && locked) {
-			rc_printk(
+			RC_PRINTK(
 				RC_INFO,
 				"rcraid:  B/T/L %d/%d/%d cannot be detached - "
 				"LOCKED\n",
 				bus, target, lun);
-			rc_printk(RC_INFO,
+			RC_PRINTK(RC_INFO,
 				  "      : Please umount the filesystem\n");
 		} else {
 			if (present)
@@ -499,7 +499,7 @@ static int rc_notify_scsi_layer(int channel, int target, int lun, int present)
 	struct Scsi_Host *shost;
 	int error = -ENXIO;
 
-	rc_printk(RC_DEBUG, "%s:%d bus %d target %d lun %d present %d\n",
+	RC_PRINTK(RC_DEBUG, "%s:%d bus %d target %d lun %d present %d\n",
 		  __FUNCTION__, __LINE__, channel, target, lun, present);
 
 	if (!(shost = scsi_host_get(rc_state.host_ptr)))

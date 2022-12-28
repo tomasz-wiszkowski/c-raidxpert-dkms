@@ -124,7 +124,7 @@
 
 typedef union {
 	void *virt_addr;
-	uint64_t phys_addr;
+	u64 phys_addr;
 } addr_elem_t;
 
 #define dma_paddr addr.phys_addr
@@ -136,36 +136,36 @@ typedef union {
 
 typedef struct RC_PACKED rc_sg_elem_s {
 	addr_elem_t addr;
-	uint32_t size; /* set to machine natural size */
+	u32 size; /* set to machine natural size */
 } rc_sg_elem_t;
 
 typedef struct rc_sg_list_s {
-	uint16_t sg_mem_type; /* Memory ID to pass to routines */
-	uint16_t reserved;
-	uint32_t sg_num_elem;
+	u16 sg_mem_type; /* Memory ID to pass to routines */
+	u16 reserved;
+	u32 sg_num_elem;
 	rc_sg_elem_t sg_elem[1]; /* variable size array */
 } rc_sg_list_t;
 
 typedef struct rc_srb_s {
 	struct rc_srb_s *next;
-	uint32_t function;
-	uint32_t status;
-	uint32_t bus;
-	uint32_t target;
-	uint32_t lun;
-	uint32_t flags;
-	uint32_t seq_num;
-	uint32_t data_len;
-	uint32_t cdb_len;
+	u32 function;
+	u32 status;
+	u32 bus;
+	u32 target;
+	u32 lun;
+	u32 flags;
+	u32 seq_num;
+	u32 data_len;
+	u32 cdb_len;
 	void *cdb;
-	uint32_t sense_len;
+	u32 sense_len;
 	void *sense;
 	rc_sg_list_t *sg_list;
 	void *scsi_context;
 	void *dev_private;
 	void (*callback)(struct rc_srb_s *);
-	uint32_t timeout;
-	uint32_t private32[1]; // This must be the last entry.
+	u32 timeout;
+	u32 private32[1]; // This must be the last entry.
 	// The sg_list (rc_sg_list_t) is allocated along with
 	// this structure and private32 is the pointer used to
 	// beginning of the sg_list.

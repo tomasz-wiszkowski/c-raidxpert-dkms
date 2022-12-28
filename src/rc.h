@@ -25,15 +25,16 @@
 
 #include <linux/version.h>
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/types.h>
-#include <linux/sched.h>
-#include <linux/pci.h>
-#include <linux/spinlock.h>
-#include <linux/slab.h>
 #include <linux/completion.h>
+#include <linux/efi.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/pci.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+#include <linux/types.h>
 
 #include <linux/blkdev.h>
 #include <scsi/scsi.h>
@@ -60,11 +61,6 @@
  * The least we can do is be sure that the sizeof(int) is what we'd expect.
  */
 static_assert(sizeof(int) == 4, "Broken invariants; code guaranteed to fail.");
-
-/* Misc fixups for the 2.6 kernel */
-
-/* 2.6 kernel dosen't include a typedef */
-typedef struct scsi_host_template Scsi_Host_Template;
 
 /* 2.6 kernel dosen't use io_request_lock */
 #define GET_IO_REQUEST_LOCK
@@ -98,9 +94,9 @@ void rc_printk(int flag, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));
 
 /* Fast version of rc_printk for use in data path. */
-#define RC_PRINTK(flag, fmt, ...) \
+#define RC_PRINTK(flag, fmt...)   \
 	if (flag <= rc_msg_level) \
-		rc_printk(flag, fmt, __VA_ARGS__);
+		rc_printk(flag, fmt)
 
 #ifdef RC_SW_DEBUG
 #define RC_ASSERT(cond) BUG_ON(!(cond))
@@ -116,7 +112,7 @@ extern void rc_event_shutdown(void);
 
 extern rc_softstate_t rc_state;
 extern rc_adapter_t *rc_dev[];
-extern int rc_msg_level;
+extern rc_print_lvl_t rc_msg_level;
 
 typedef struct _rc_work {
 	struct _rc_work *next;
@@ -172,15 +168,11 @@ typedef struct rc_thread_s {
 	struct semaphore stop_sema;
 } rc_thread_t;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 #define DEVICE_ACPI_HANDLE(dev) ((acpi_handle)ACPI_HANDLE(dev))
-#endif
 
 //
 // UEFI NVRAM Access
 //
-
-#include <linux/efi.h>
 
 #define NVME_TRAP_DEVICE_VAR_GUID                                          \
 	EFI_GUID(0x4b2865c3, 0x8722, 0x45db, 0xaa, 0x7b, 0xf9, 0xe1, 0xc1, \
@@ -198,7 +190,7 @@ typedef struct {
 #define check_lock(sp)                                                        \
 	{                                                                     \
 		if (sp->osic_locked) {                                        \
-			rc_printk(RC_WARN, "%s: osic already locked by %s\n", \
+			RC_PRINTK(RC_WARN, "%s: osic already locked by %s\n", \
 				  __FUNCTION__, sp->osic_lock_holder);        \
 			panic("osic_lock already held\n");                    \
 		}                                                             \

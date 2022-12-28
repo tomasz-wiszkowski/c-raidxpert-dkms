@@ -33,6 +33,7 @@
 #include <linux/spinlock_types.h>
 #include <linux/stddef.h>
 #include <linux/sysctl.h>
+#include <scsi/scsi_host.h>
 
 #include "build_number.h"
 #include "rc.h"
@@ -91,7 +92,7 @@ static char version_string[VERSION_STRING_LEN];
  * Globals
  */
 rc_softstate_t rc_state;
-int rc_msg_level = RC_DEFAULT_ERR_LEVEL;
+rc_print_lvl_t rc_msg_level = RC_DEFAULT_ERR_LEVEL;
 rc_adapter_t *rc_dev[MAX_HBA];
 struct mutex ioctl_mutex;
 
@@ -266,7 +267,7 @@ static DEF_SCSI_QCMD(rc_queue_cmd) static inline struct rc_scsi_cmd
 	return scsi_cmd_priv(cmd);
 }
 
-static Scsi_Host_Template driver_template = {
+static struct scsi_host_template driver_template = {
 	.module = THIS_MODULE,
 	.name = RC_DRIVER_NAME,
 	.proc_name = RC_DRIVER_NAME,
@@ -332,11 +333,11 @@ static void rc_init_module(void)
 {
 	extern char *rc_ident;
 
-	rc_printk(RC_NOTE,
+	RC_PRINTK(RC_NOTE,
 		  "%s %s raid driver version %s build_number %s built %s\n",
 		  VER_COMPANYNAME_STR, RC_DRIVER_NAME, RC_DRIVER_VERSION,
 		  RC_BUILD_NUMBER, RC_DRIVER_BUILD_DATE);
-	rc_printk(RC_NOTE, "%s %s\n", RC_DRIVER_NAME, rc_ident);
+	RC_PRINTK(RC_NOTE, "%s %s\n", RC_DRIVER_NAME, rc_ident);
 
 	//
 	// Attempt to find NVMe original VID/DID table
@@ -381,7 +382,7 @@ static void rc_init_module(void)
 	if (max_xfer < 8)
 		max_xfer = 8;
 
-	rc_printk(RC_NOTE,
+	RC_PRINTK(RC_NOTE,
 		  "rcraid: cmd_q_depth %d, tag_q_depth %d, max_xfer "
 		  "%d\n",
 		  cmd_q_depth, tag_q_depth, max_xfer);
@@ -431,7 +432,7 @@ static void rc_get_bar(struct pci_dev *dev, int which_bar,
 		bar.addr.high = pci_resource_start(dev, which_bar);
 	}
 
-	rc_printk(RC_DEBUG, "%s: bar addr 0x%x:%x len %d flags 0x%x\n",
+	RC_PRINTK(RC_DEBUG, "%s: bar addr 0x%x:%x len %d flags 0x%x\n",
 		  __FUNCTION__, bar.addr.high, bar.addr.low, bar.len,
 		  bar.flags);
 
@@ -460,12 +461,12 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	// int			rc;
 	u32 Loc;
 
-	rc_printk(RC_DEBUG, "%s: Matched %.04x/%.04x/%.04x/%.04x\n",
+	RC_PRINTK(RC_DEBUG, "%s: Matched %.04x/%.04x/%.04x/%.04x\n",
 		  __FUNCTION__, id->vendor, id->device, id->subvendor,
 		  id->subdevice);
 
 	if (rc_state.num_hba == MAX_HBA) {
-		rc_printk(RC_ERROR, "%s: Exceeded maximum adapter count of %d",
+		RC_PRINTK(RC_ERROR, "%s: Exceeded maximum adapter count of %d",
 			  __FUNCTION__, MAX_HBA);
 		return -ENODEV;
 	}
@@ -476,7 +477,7 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 
 	adapter = kmalloc(sizeof(rc_adapter_t), GFP_KERNEL);
 	if (adapter == NULL) {
-		rc_printk(RC_ERROR, "%s: can't alloc memory\n", __FUNCTION__);
+		RC_PRINTK(RC_ERROR, "%s: can't alloc memory\n", __FUNCTION__);
 		return -ENODEV;
 	}
 
@@ -488,7 +489,7 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	adapter->hardware.adapter_number = rc_state.num_hba;
 
 	// rc = pcim_iomap_regions_request_all(dev, 1 << adapter->version->which_bar, "rcraid");
-	// rc_printk(RC_ERROR, "%s(): rc = 0x%x\n", __FUNCTION__, rc);
+	// RC_PRINTK(RC_ERROR, "%s(): rc = 0x%x\n", __FUNCTION__, rc);
 
 	hw = &adapter->hardware;
 	hw->pci_bus = dev->bus->number;
@@ -498,12 +499,12 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	hw->mem_len = bar.len;
 
 	if (hw->phys_addr == 0) { /* No pci memory */
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  RC_DRIVER_NAME ": %s %s with pci IDs %x/%x/%x/%x "
 					 "has no pci address space assigned\n",
 			  adapter->version->vendor, adapter->version->model,
 			  id->vendor, id->device, id->subvendor, id->subdevice);
-		rc_printk(RC_ERROR, "Check BIOS PCI settings\n");
+		RC_PRINTK(RC_ERROR, "Check BIOS PCI settings\n");
 		rc_shutdown_adapter(adapter);
 		return -ENODEV;
 	}
@@ -529,14 +530,14 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	 */
 	if (!dma_set_mask(&dev->dev, DMA_BIT_MASK(64)) &&
 	    !dma_set_coherent_mask(&dev->dev, DMA_BIT_MASK(64))) {
-		rc_printk(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA enabled\n",
+		RC_PRINTK(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA enabled\n",
 			  __FUNCTION__);
 	} else if (!dma_set_mask(&dev->dev, DMA_BIT_MASK(32)) &&
 		   !dma_set_coherent_mask(&dev->dev, DMA_BIT_MASK(32))) {
-		rc_printk(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA disabled\n",
+		RC_PRINTK(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA disabled\n",
 			  __FUNCTION__);
 	} else {
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  RC_DRIVER_NAME ": %s failed to "
 					 "set usable DMA mask\n",
 			  __FUNCTION__);
@@ -548,11 +549,11 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	 * map in the adapter MMIO space
 	 */
 	adapter->hardware.vaddr = (void *)ioremap(hw->phys_addr, hw->mem_len);
-	rc_printk(RC_ERROR, "%s(): hardware.vaddr = %px\n", __FUNCTION__,
+	RC_PRINTK(RC_ERROR, "%s(): hardware.vaddr = %px\n", __FUNCTION__,
 		  adapter->hardware.vaddr);
 
 	if (adapter->hardware.vaddr == NULL) {
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  RC_DRIVER_NAME ": %s can't map %s "
 					 "adapter %d at 0x%lx\n",
 			  __FUNCTION__, adapter->name, adapter->instance,
@@ -708,11 +709,11 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 		RC_ODD_Device = RC_ODD_DEVICE_INVALID;
 
 	if (!RC_EnableZPODD) {
-		rc_printk(RC_INFO, "### %s(): RC_EnableZPODD = %d\n",
+		RC_PRINTK(RC_INFO, "### %s(): RC_EnableZPODD = %d\n",
 			  __FUNCTION__, RC_EnableZPODD);
 	} else {
 		char ODD_Devices[4] = { '?', 'Z', 'L', '8' };
-		rc_printk(
+		RC_PRINTK(
 			RC_INFO,
 			"### %s(): RC_EnableZPODD = %d, RC_ODD_Device = ODD%c, RC_ODDZDevAddr = 0x%x, "
 			"RC_ODD_GpeNumber = %d\n",
@@ -730,10 +731,10 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 
 	/* Call initialization routine */
-	rc_printk(RC_DEBUG, "%s: Initializing hardware...\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s: Initializing hardware...\n", __FUNCTION__);
 	if ((*adapter->version->init_func)(adapter) != 0) {
 		/* Device initialization failed */
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  RC_DRIVER_NAME ":%d Device initialization failed\n",
 			  adapter->instance);
 		rc_shutdown_adapter(adapter);
@@ -754,12 +755,12 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 			     (void *)adapter->version->isr_func,
 			     0, // RC_IRQF,
 			     RC_DRIVER_NAME, (void *)adapter) < 0) {
-		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d request_irq failed\n",
+		RC_PRINTK(RC_ERROR, RC_DRIVER_NAME ":%d request_irq failed\n",
 			  adapter->instance);
 		rc_shutdown_adapter(adapter);
 		return -ENODEV;
 	} else
-		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d irq %d\n",
+		RC_PRINTK(RC_ERROR, RC_DRIVER_NAME ":%d irq %d\n",
 			  adapter->instance,
 			  i); // dev->irq);     // pci_irq_vector(dev, 0));
 	dev_info(&dev->dev, "msi_enabled %d, msix_enabled %d\n",
@@ -769,7 +770,7 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 
 	if ((*adapter->version->start_func)(adapter) != 0) {
 		/* Device initialization failed */
-		rc_printk(RC_ERROR, RC_DRIVER_NAME ":%d Device start failed\n",
+		RC_PRINTK(RC_ERROR, RC_DRIVER_NAME ":%d Device start failed\n",
 			  adapter->instance);
 		rc_shutdown_adapter(adapter);
 		return -ENODEV;
@@ -778,7 +779,7 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	pci_set_drvdata(dev, adapter);
 	rc_dev[rc_state.num_hba++] = adapter;
 
-	rc_printk(RC_NOTE, RC_DRIVER_NAME ": card %d: %s %s\n\n",
+	RC_PRINTK(RC_NOTE, RC_DRIVER_NAME ": card %d: %s %s\n\n",
 		  adapter->instance, adapter->version->vendor,
 		  adapter->version->model);
 
@@ -804,7 +805,7 @@ static int rc_init_host(struct pci_dev *pdev)
 		return error;
 	}
 
-	rc_printk(RC_DEBUG, "rc_init_host: calling scsi_host_alloc\n");
+	RC_PRINTK(RC_DEBUG, "rc_init_host: calling scsi_host_alloc\n");
 	host_ptr = scsi_host_alloc(&driver_template, 32);
 	if (!host_ptr) {
 		return -ENOMEM;
@@ -838,7 +839,7 @@ static int rc_init_host(struct pci_dev *pdev)
 	error = scsi_add_host(host_ptr, &pdev->dev);
 
 	if (error) {
-		rc_printk(RC_ERROR, "Failed to add scsi host");
+		RC_PRINTK(RC_ERROR, "Failed to add scsi host");
 		scsi_host_put(host_ptr);
 		return error;
 	}
@@ -847,7 +848,7 @@ static int rc_init_host(struct pci_dev *pdev)
 	rc_state.is_suspended = 0;
 	scsi_scan_host(host_ptr);
 
-	rc_printk(RC_DEBUG, "rc_init_host: completed\n");
+	RC_PRINTK(RC_DEBUG, "rc_init_host: completed\n");
 	return 0;
 }
 
@@ -866,9 +867,9 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	struct device *probe_dd;
 
 	/* Count the number adapters on the bus that we will claim. */
-	rc_printk(RC_DEBUG, "%s rcraid ENTER\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s rcraid ENTER\n", __FUNCTION__);
 	if (!adapter_count) {
-		rc_printk(RC_NOTE, "%s: counting supported adapters\n",
+		RC_PRINTK(RC_NOTE, "%s: counting supported adapters\n",
 			  __FUNCTION__);
 		for (probe_id = &rcraid_id_tbl[0]; probe_id->vendor != 0;
 		     probe_id++) {
@@ -880,13 +881,13 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 				if (probe_id->vendor == PCI_ANY_ID) {
 					if (probe_id->class !=
 					    probe_dev->class) {
-						// rc_printk(RC_NOTE, "%s: not rcraid device vendor = 0x%x device 0x%x, class 0x%x\n",
+						// RC_PRINTK(RC_NOTE, "%s: not rcraid device vendor = 0x%x device 0x%x, class 0x%x\n",
 						// __FUNCTION__, probe_dev->vendor,probe_dev->device,probe_dev->class);
 						continue;
 					}
 				}
 
-				rc_printk(
+				RC_PRINTK(
 					RC_NOTE,
 					"%s: matched supported adapter - vendor = 0x%x device 0x%x\n",
 					__FUNCTION__, probe_dev->vendor,
@@ -897,7 +898,7 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 				/* If NVMe device was not unbound, don't touch it. */
 				if (probe_dd->links.status ==
 				    DL_DEV_DRIVER_BOUND) {
-					rc_printk(
+					RC_PRINTK(
 						RC_WARN,
 						"%s: Driver for device %s already bound (%s)\n",
 						__FUNCTION__,
@@ -910,7 +911,7 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 				adapter_count++;
 			}
 		}
-		rc_printk(RC_NOTE, "%s: Total adapters matched %u\n",
+		RC_PRINTK(RC_NOTE, "%s: Total adapters matched %u\n",
 			  __FUNCTION__, adapter_count);
 	}
 
@@ -927,12 +928,12 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	if ((adapter_count && rc_adapter_count == rc_state.num_hba) ||
 	    (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
 		int err;
-		rc_printk(RC_INFO, "%s: Initializing misc device\n",
+		RC_PRINTK(RC_INFO, "%s: Initializing misc device\n",
 			  __FUNCTION__);
 		err = rc_init_host(dev);
 		if (!err) {
 			if (misc_register(&rccfg_api_dev))
-				rc_printk(RC_ERROR,
+				RC_PRINTK(RC_ERROR,
 					  "%s: failed to register rc_api\n",
 					  __FUNCTION__);
 			mutex_init(&ioctl_mutex);
@@ -956,7 +957,7 @@ void rc_shutdown_host(struct Scsi_Host *host_ptr)
 
 	rc_state.state |= SHUTDOWN;
 
-	rc_printk(RC_DEBUG, "rc_shutdown_host\n");
+	RC_PRINTK(RC_DEBUG, "rc_shutdown_host\n");
 	rc_msg_shutdown(&rc_state);
 }
 
@@ -969,18 +970,18 @@ void rc_shutdown_host(struct Scsi_Host *host_ptr)
 void rc_shutdown_adapter(rc_adapter_t *adapter)
 {
 	if (adapter == (rc_adapter_t *)0) {
-		rc_printk(RC_DEBUG, "%s: NULL adapter\n", __FUNCTION__);
+		RC_PRINTK(RC_DEBUG, "%s: NULL adapter\n", __FUNCTION__);
 		return;
 	}
 
-	rc_printk(RC_DEBUG, "%s: adapter %d addr 0x%px\n", __FUNCTION__,
+	RC_PRINTK(RC_DEBUG, "%s: adapter %d addr 0x%px\n", __FUNCTION__,
 		  adapter->instance, adapter);
 
 	/* Call the adapter specific shutdown function. */
 	if (adapter->version->shutdown_func)
 		(*adapter->version->shutdown_func)(adapter);
 
-	rc_printk(RC_DEBUG, "%s: free_irq\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s: free_irq\n", __FUNCTION__);
 	if (adapter->hardware.irq)
 		devm_free_irq(&adapter->pdev->dev, adapter->hardware.irq,
 			      adapter);
@@ -990,12 +991,12 @@ void rc_shutdown_adapter(rc_adapter_t *adapter)
 	if (adapter->pdev->msix_enabled)
 		pci_disable_msix(adapter->pdev);
 
-	rc_printk(RC_DEBUG, "%s: unmap MMIO space 0x%px\n", __FUNCTION__,
+	RC_PRINTK(RC_DEBUG, "%s: unmap MMIO space 0x%px\n", __FUNCTION__,
 		  adapter->hardware.vaddr);
 	if (adapter->hardware.vaddr)
 		iounmap((void *)adapter->hardware.vaddr);
 
-	rc_printk(RC_DEBUG, "%s: free private_mem 0x%px\n", __FUNCTION__,
+	RC_PRINTK(RC_DEBUG, "%s: free private_mem 0x%px\n", __FUNCTION__,
 		  adapter->private_mem.vaddr);
 	if (adapter->private_mem.vaddr) {
 		dma_free_coherent(&adapter->pdev->dev,
@@ -1005,7 +1006,7 @@ void rc_shutdown_adapter(rc_adapter_t *adapter)
 	}
 
 	/* pci_disable_device(adapter->pdev); */
-	rc_printk(RC_DEBUG, "%s: free adapter 0x%px\n", __FUNCTION__, adapter);
+	RC_PRINTK(RC_DEBUG, "%s: free adapter 0x%px\n", __FUNCTION__, adapter);
 	kfree(adapter);
 }
 
@@ -1069,11 +1070,11 @@ static int rcraid_suspend_one(struct pci_dev *pdev, pm_message_t mesg)
 
 	state = &rc_state;
 
-	rc_printk(RC_NOTE, RC_DRIVER_NAME ": suspend pdev %px\n", pdev);
+	RC_PRINTK(RC_NOTE, RC_DRIVER_NAME ": suspend pdev %px\n", pdev);
 
 	pdev->dev.power.power_state = mesg;
 
-	rc_printk(RC_ERROR, "%s: event=%d \n", __FUNCTION__, mesg.event);
+	RC_PRINTK(RC_ERROR, "%s: event=%d \n", __FUNCTION__, mesg.event);
 
 	//
 	// Shutdown the core
@@ -1143,7 +1144,7 @@ static int rcraid_resume_one(struct pci_dev *pdev)
 	rc_softstate_t *state;
 	int i;
 
-	rc_printk(RC_NOTE, RC_DRIVER_NAME ": resume pdev %px\n", pdev);
+	RC_PRINTK(RC_NOTE, RC_DRIVER_NAME ": resume pdev %px\n", pdev);
 
 	//
 	// Get adapter associated with this pci_dev
@@ -1275,12 +1276,12 @@ static inline void rc_ahci_disable_irq(rc_adapter_t *adapter)
  */
 int rc_ahci_init(rc_adapter_t *adapter)
 {
-	rc_printk(RC_DEBUG, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s\n", __FUNCTION__);
 	rc_ahci_disable_irq(adapter);
 
 	// try using msi (0 return means success)
 	if (pci_enable_msi(adapter->pdev)) {
-		rc_printk(RC_WARN, "rc_ahci_init: pci_enable_msi failed\n");
+		RC_PRINTK(RC_WARN, "rc_ahci_init: pci_enable_msi failed\n");
 	} else {
 		adapter->hardware.ismsi = 1;
 	}
@@ -1305,7 +1306,7 @@ int rc_ahci_start(rc_adapter_t *adapter)
 
 int rc_ahci_shutdown(rc_adapter_t *adapter)
 {
-	rc_printk(RC_WARN, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_WARN, "%s\n", __FUNCTION__);
 	// devm_ functions handle the shutdown. If
 	// we do this, we'll see kernel errors/bugs.
 	return 0;
@@ -1329,12 +1330,12 @@ irqreturn_t rc_ahci_isr(int irq, void *arg, struct pt_regs *regs)
 
 static inline void rc_nvme_disable_irq(rc_adapter_t *adapter)
 {
-	rc_printk(RC_DEBUG, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s\n", __FUNCTION__);
 }
 
 int rc_nvme_init(rc_adapter_t *adapter)
 {
-	rc_printk(RC_DEBUG, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s\n", __FUNCTION__);
 
 	rc_nvme_disable_irq(adapter);
 
@@ -1367,7 +1368,7 @@ int rc_nvme_start(rc_adapter_t *adapter)
 {
 	u16 cmd;
 
-	rc_printk(RC_DEBUG, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_DEBUG, "%s\n", __FUNCTION__);
 
 	// The RAIDCore BIOS (and INT13 driver) may turn off access to
 	// the chip by clearing PCI Bus Master, Memory, and IO bits.  These
@@ -1417,7 +1418,7 @@ int rc_queue_cmd_lck(struct scsi_cmnd *scp)
 #endif
 
 #if 0
-	rc_printk(RC_DEBUG2, "\trc_queue_cmd B/T/L %d/%d/%d\n",
+	RC_PRINTK(RC_DEBUG2, "\trc_queue_cmd B/T/L %d/%d/%d\n",
 		  scp->device->channel, scp->device->id, scp->device->lun);
 #endif
 
@@ -1439,12 +1440,12 @@ int rc_eh_abort_cmd(struct scsi_cmnd *scp)
 {
 	rc_srb_t *srb;
 
-	rc_printk(RC_ERROR, "rc_eh_abort_cmd: scp: 0x%px bus %d target %d\n",
+	RC_PRINTK(RC_ERROR, "rc_eh_abort_cmd: scp: 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
 
 	srb = rc_scsi_pointer(scp)->srb;
 	if (srb != NULL) {
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "\tsrb: 0x%px seq_num %d function %x status %x "
 			  "flags %x b/t/l %d/%d/%d\n",
 			  srb, srb->seq_num, srb->function, srb->status,
@@ -1452,7 +1453,7 @@ int rc_eh_abort_cmd(struct scsi_cmnd *scp)
 		srb->scsi_context = NULL;
 		rc_scsi_pointer(scp)->srb = NULL;
 	} else {
-		rc_printk(RC_WARN, "rc_eh_abort_cmd: srb already completed\n");
+		RC_PRINTK(RC_WARN, "rc_eh_abort_cmd: srb already completed\n");
 		// most likely here because we already processed srb
 		// (rc_msg_srb_complete)
 		return (FAILED);
@@ -1465,7 +1466,7 @@ int rc_eh_abort_cmd(struct scsi_cmnd *scp)
 
 int rc_eh_dev_reset(struct scsi_cmnd *scp)
 {
-	rc_printk(RC_ERROR, "rc_eh_dev_reset: scp 0x%px bus %d target %d\n",
+	RC_PRINTK(RC_ERROR, "rc_eh_dev_reset: scp 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
 	rc_dump_scp(scp);
 
@@ -1474,7 +1475,7 @@ int rc_eh_dev_reset(struct scsi_cmnd *scp)
 
 int rc_eh_bus_reset(struct scsi_cmnd *scp)
 {
-	rc_printk(RC_ERROR, "rc_eh_bus_reset: scp 0x%px bus %d target %d\n",
+	RC_PRINTK(RC_ERROR, "rc_eh_bus_reset: scp 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
 	rc_dump_scp(scp);
 
@@ -1483,7 +1484,7 @@ int rc_eh_bus_reset(struct scsi_cmnd *scp)
 
 int rc_eh_hba_reset(struct scsi_cmnd *scp)
 {
-	rc_printk(RC_ERROR, "rc_eh_hba_reset: scp 0x%px bus %d target %d\n",
+	RC_PRINTK(RC_ERROR, "rc_eh_hba_reset: scp 0x%px bus %d target %d\n",
 		  scp, scp->device->channel, scp->device->id);
 	rc_dump_scp(scp);
 
@@ -1856,7 +1857,7 @@ int rc_bios_params(struct scsi_device *sdev, struct block_device *bdev,
 
 	param = (rc_bios_disk_parameters_t *)geom;
 
-	rc_printk(RC_DEBUG, "rc_bios_disk_parameters\n");
+	RC_PRINTK(RC_DEBUG, "rc_bios_disk_parameters\n");
 
 	// Assuming extended translation is enabled - #REVISIT#
 	if (capacity >= 2 * 1024 * 1024) // 1 GB in 512 byte Sectors
@@ -1931,7 +1932,7 @@ int rc_ioctl(struct scsi_device *scsi_dev_ptr, unsigned int cmd, void *arg)
 	if (_IOC_DIR(cmd) & _IOC_READ)
 		direction = 'r';
 
-	rc_printk(RC_DEBUG, "rc_ioctl: type %i nr %i dir %c\n", _IOC_TYPE(cmd),
+	RC_PRINTK(RC_DEBUG, "rc_ioctl: type %i nr %i dir %c\n", _IOC_TYPE(cmd),
 		  _IOC_NR(cmd), direction);
 	return (-ENOTTY);
 }
@@ -1987,7 +1988,7 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 	target = scp->device->id;
 	lun = scp->device->lun;
 
-	rc_printk(RC_DEBUG2, "SCP/SCSI command 0x%02x B/T/L %d/%d/%d\n", cmd,
+	RC_PRINTK(RC_DEBUG2, "SCP/SCSI command 0x%02x B/T/L %d/%d/%d\n", cmd,
 		  bus, target, lun);
 
 	switch (cmd) {
@@ -1996,7 +1997,7 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 		lba = ((scb->scsi6.addr[0] & 0x1f) << 16) |
 		      (scb->scsi6.addr[1] << 8) | scb->scsi6.addr[2];
 		sector_count = scb->scsi6.len;
-		rc_printk(RC_DEBUG, "lba: %d len %d\n", lba, sector_count);
+		RC_PRINTK(RC_DEBUG, "lba: %d len %d\n", lba, sector_count);
 		break;
 
 	case RC_WRITE_10:
@@ -2005,7 +2006,7 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 		      (scb->scsi10.addr[1] << 16) | (scb->scsi10.addr[2] << 8) |
 		      scb->scsi10.addr[3];
 		sector_count = (scb->scsi10.len[0] << 8) | scb->scsi10.len[1];
-		rc_printk(RC_DEBUG, "lba: %d len %d\n", lba, sector_count);
+		RC_PRINTK(RC_DEBUG, "lba: %d len %d\n", lba, sector_count);
 		break;
 
 	case RC_WRITE_16:
@@ -2019,19 +2020,19 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 			((u64)scb->scsi16.addr[6] << 8) |
 			(u64)scb->scsi16.addr[7];
 		sector_count = (scb->scsi16.len[0] << 8) | scb->scsi16.len[1];
-		rc_printk(RC_DEBUG, "lba: %lld len %d\n", lba16, sector_count);
+		RC_PRINTK(RC_DEBUG, "lba: %lld len %d\n", lba16, sector_count);
 		break;
 
 	default:
 		break;
 	}
 
-	rc_printk(RC_DEBUG2, "    scp: 0x%px sg 0x%px, sg_count %d, len %d\n",
+	RC_PRINTK(RC_DEBUG2, "    scp: 0x%px sg 0x%px, sg_count %d, len %d\n",
 		  scp, scsi_sglist(scp), scsi_sg_count(scp), scsi_bufflen(scp));
 	scsi_for_each_sg(scp, sg, scsi_sg_count(scp), i)
 	{
 		dma_addr = sg_phys(sg);
-		rc_printk(
+		RC_PRINTK(
 			RC_DEBUG,
 #if defined(CONFIG_HIGHMEM64G) || defined(CONFIG_X86_64)
 			"    page: 0x%px  offset: 0x%x addr: 0x%016llx len %d\n",
@@ -2040,7 +2041,7 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 #endif
 			sg_page(sg), sg->offset, dma_addr, sg->length);
 	}
-	rc_printk(RC_DEBUG2, "\n");
+	RC_PRINTK(RC_DEBUG2, "\n");
 }
 
 static int rc_notify_reboot(struct notifier_block *this, unsigned long code,
@@ -2184,7 +2185,7 @@ static void __exit rcraid_exit(void)
 {
 	int i;
 
-	rc_printk(RC_DEBUG, "rcraid_exit\n");
+	RC_PRINTK(RC_DEBUG, "rcraid_exit\n");
 
 	unregister_reboot_notifier(&rc_notifier);
 

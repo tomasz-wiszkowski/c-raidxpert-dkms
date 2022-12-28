@@ -175,7 +175,7 @@ int rc_kthread(void *rc_threadp)
 	if (smp_processor_id() != cpu)
 		BUG();
 
-	rc_printk(RC_DEBUG, "rc_kthread: cpu %d thread started\n", cpu);
+	RC_PRINTK(RC_DEBUG, "rc_kthread: cpu %d thread started\n", cpu);
 
 	do {
 		preempt_disable();
@@ -199,7 +199,7 @@ int rc_kthread(void *rc_threadp)
 			case RC_OP_MEM_LIST_CMP:
 			case RC_OP_MEM_CLEAR:
 			case RC_OP_MEM_COPY:
-				rc_printk(RC_ERROR,
+				RC_PRINTK(RC_ERROR,
 					  "rc_msg_mem_op: Unsupported memory "
 					  "operation- %d\n",
 					  mop->opcode);
@@ -209,7 +209,7 @@ int rc_kthread(void *rc_threadp)
 				status = rc_kthread_mem_user_copy(tp, mop);
 				break;
 			default:
-				rc_printk(RC_ERROR,
+				RC_PRINTK(RC_ERROR,
 					  "rc_msg_mem_op: Invalid memory "
 					  "operation- %d\n",
 					  mop->opcode);
@@ -262,7 +262,7 @@ int rc_kthread(void *rc_threadp)
 		}
 	}
 
-	rc_printk(RC_INFO, "rc_kthread: cpu %d thread stopped\n", cpu);
+	RC_PRINTK(RC_INFO, "rc_kthread: cpu %d thread stopped\n", cpu);
 
 	mb();
 
@@ -278,7 +278,7 @@ static inline int rc_sg_list_size(rc_sg_list_t *src)
 	size = 0;
 
 	if (!src) {
-		rc_printk(RC_ERROR, "rc_sg_list_size: src == 0\n");
+		RC_PRINTK(RC_ERROR, "rc_sg_list_size: src == 0\n");
 		return 0;
 	}
 
@@ -310,7 +310,7 @@ int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
 	dst_cnt = rc_sg_list_size(dst);
 
 	if (byte_count > dst_cnt) {
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  "rc_mem_clear_list, count %d dst_count %d\n",
 			  byte_count, dst_cnt);
 		BUG();
@@ -355,7 +355,7 @@ int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
 				   RC_MEM_VADDR) {
 				dst_vaddr = dst->sg_elem[dst_idx].v_addr;
 				dst_mapped = dst->sg_elem[dst_idx].size;
-				rc_printk(RC_DEBUG3,
+				RC_PRINTK(RC_DEBUG3,
 					  "dst[%d]: vaddr %px size: %x\n",
 					  dst_idx, dst_vaddr, dst_mapped);
 			} else
@@ -394,7 +394,7 @@ int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
 	if (dst_page)
 		kunmap_atomic(dst_vaddr);
 	if (residual)
-		rc_printk(RC_PANIC,
+		RC_PRINTK(RC_PANIC,
 			  "rc_mem_clear_list: residual is not 0 at end "
 			  "of loop\n");
 
@@ -427,13 +427,13 @@ int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 	dst_cnt = rc_sg_list_size(dst);
 
 	if (byte_count > src_cnt) {
-		rc_printk(RC_ERROR, "rc_mem_copy_list, count %d src_count %d\n",
+		RC_PRINTK(RC_ERROR, "rc_mem_copy_list, count %d src_count %d\n",
 			  byte_count, src_cnt);
 		BUG();
 	}
 
 	if (byte_count > dst_cnt) {
-		rc_printk(RC_ERROR, "rc_mem_copy_list, count %d dst_count %d\n",
+		RC_PRINTK(RC_ERROR, "rc_mem_copy_list, count %d dst_count %d\n",
 			  byte_count, dst_cnt);
 		BUG();
 	}
@@ -530,7 +530,7 @@ int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 				   RC_MEM_VADDR) {
 				dst_vaddr = dst->sg_elem[dst_idx].v_addr;
 				dst_mapped = dst->sg_elem[dst_idx].size;
-				rc_printk(RC_DEBUG3,
+				RC_PRINTK(RC_DEBUG3,
 					  "%s: dst[%d]: vaddr %px size: 0x%x\n",
 					  __FUNCTION__, dst_idx, dst_vaddr,
 					  dst_mapped);
@@ -594,7 +594,7 @@ out:
 	if (dst_page)
 		kunmap_atomic(dst_vaddr);
 	if (residual)
-		rc_printk(RC_PANIC,
+		RC_PRINTK(RC_PANIC,
 			  "rc_mem_copy_list: residual is not 0 at end of "
 			  "loop\n");
 
@@ -617,7 +617,7 @@ static u32 rc_check_addr_one(u64 addr, u32 id, u32 byte_count)
 	id &= MEM_TYPE;
 
 	if (id != RC_MEM_VADDR && id != RC_MEM_PADDR) {
-		rc_printk(RC_ERROR, "rc_check_addr_one: Bad memory type %x\n",
+		RC_PRINTK(RC_ERROR, "rc_check_addr_one: Bad memory type %x\n",
 			  id);
 		return status;
 	}
@@ -627,7 +627,7 @@ static u32 rc_check_addr_one(u64 addr, u32 id, u32 byte_count)
 		if (((unsigned long)vaddr < VMALLOC_START ||
 		     (unsigned long)vaddr >= VMALLOC_END) &&
 		    !virt_addr_valid(vaddr)) {
-			rc_printk(
+			RC_PRINTK(
 				RC_PANIC,
 				"rc_check_addr_one: Invalid virtual address - %px\n",
 				vaddr);
@@ -637,7 +637,7 @@ static u32 rc_check_addr_one(u64 addr, u32 id, u32 byte_count)
 		u64 paddr = ((addr_elem_t)addr).phys_addr;
 		unsigned long long pfn = paddr >> PAGE_SHIFT;
 		if (!pfn_valid(pfn)) {
-			rc_printk(
+			RC_PRINTK(
 				RC_PANIC,
 				"rc_check_addr_one: Invalid physical address - 0x%llx\n",
 				paddr);
@@ -664,14 +664,14 @@ static u32 rc_check_addr_list(rc_addr_list_t *addr_list)
 	mem_type = addr_list->mem_id & MEM_TYPE;
 
 	if (mem_type != RC_MEM_VADDR && mem_type != RC_MEM_PADDR) {
-		rc_printk(RC_ERROR, "rc_check_addr_list: Bad memory type %x\n",
+		RC_PRINTK(RC_ERROR, "rc_check_addr_list: Bad memory type %x\n",
 			  mem_type);
 		return status;
 	}
 
 	for (ap = addr_list; ap; ap = ap->next) {
 		if (ap->mem_elem_count > RC_SINGLE_IO_ADDRESS_COUNT) {
-			rc_printk(RC_ERROR,
+			RC_PRINTK(RC_ERROR,
 				  "rc_check_addr_list: Element count too large "
 				  "- %u\n",
 				  addr_list->mem_elem_count);
@@ -684,7 +684,7 @@ static u32 rc_check_addr_list(rc_addr_list_t *addr_list)
 				if (((unsigned long)vaddr < VMALLOC_START ||
 				     (unsigned long)vaddr >= VMALLOC_END) &&
 				    !virt_addr_valid(vaddr)) {
-					rc_printk(
+					RC_PRINTK(
 						RC_PANIC,
 						"rc_check_addr_list: Invalid virtual "
 						"address - %px\n",
@@ -696,7 +696,7 @@ static u32 rc_check_addr_list(rc_addr_list_t *addr_list)
 					addr_list->sg_list[i].dma_paddr >>
 					PAGE_SHIFT;
 				if (!pfn_valid(pfn)) {
-					rc_printk(
+					RC_PRINTK(
 						RC_PANIC,
 						"rc_check_addr_list: Invalid physical "
 						"address - 0x%llu\n",
@@ -751,7 +751,7 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 			for (i = 0; i < mop->mem.list->array_count; i++)
 				status &= rc_check_addr_list(
 					mop->mem.list->src.addr_list_array[i]);
-			rc_printk(
+			RC_PRINTK(
 				RC_ERROR,
 				"rc_msg_mem_op: Unsupported memory operation- "
 				"%d\n",
@@ -763,7 +763,7 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 			for (i = 0; i < mop->mem.list->array_count; i++)
 				status &= rc_check_addr_list(
 					mop->mem.list->src.addr_list_array[i]);
-			rc_printk(
+			RC_PRINTK(
 				RC_ERROR,
 				"rc_msg_mem_op: Unsupported memory operation- "
 				"%d\n",
@@ -778,7 +778,7 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 			status &= rc_check_addr_one(mop->mem.cp.src,
 						    mop->mem.cp.src_id,
 						    mop->mem.cp.byte_count);
-			rc_printk(RC_DEBUG2,
+			RC_PRINTK(RC_DEBUG2,
 				  "RC_MEM_COPY: dst %llx id %x src %llx id %x "
 				  "count %x status1 %i\n",
 				  mop->mem.cp.dst, mop->mem.cp.dst_id,
@@ -790,17 +790,17 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 			status &= rc_check_addr_one(mop->mem.clr.dst,
 						    mop->mem.clr.dst_id,
 						    mop->mem.clr.byte_count);
-			rc_printk(RC_DEBUG2,
+			RC_PRINTK(RC_DEBUG2,
 				  "RC_MEM_CLEAR: dst %llx id %x count %x "
 				  "status1 %i\n",
 				  mop->mem.clr.dst, mop->mem.clr.dst_id,
 				  mop->mem.clr.byte_count, status);
 			break;
 		case RC_OP_MEM_USER_COPY:
-			rc_printk(RC_DEBUG2, "RC_MEM_USER_COPY\n");
+			RC_PRINTK(RC_DEBUG2, "RC_MEM_USER_COPY\n");
 			break;
 		default:
-			rc_printk(
+			RC_PRINTK(
 				RC_ERROR,
 				"rc_msg_mem_op: Invalid memory operation- %d\n",
 				mop->opcode);
@@ -1031,10 +1031,9 @@ int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop)
 	void *src;
 	void *dst;
 	unsigned long numberOfBytes = 0, byte_count = 0;
-	;
 
-	src = (void *)(uintptr_t)mop->mem.cp.src;
-	dst = (void *)(uintptr_t)mop->mem.cp.dst;
+	src = (void *)mop->mem.cp.src;
+	dst = (void *)mop->mem.cp.dst;
 	byte_count = mop->mem.cp.byte_count;
 
 	numberOfBytes = copy_to_user(dst, src, byte_count);

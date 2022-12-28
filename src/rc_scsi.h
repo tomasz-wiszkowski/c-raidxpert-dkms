@@ -87,12 +87,12 @@ typedef union rc_scb {
 } rc_scb_t;
 
 typedef struct inq_cmd {
-	uint8_t opcode;
-	uint8_t lun;
-	uint8_t page;
-	uint8_t resv;
-	uint8_t len;
-	uint8_t ctrl;
+	u8 opcode;
+	u8 lun;
+	u8 page;
+	u8 resv;
+	u8 len;
+	u8 ctrl;
 } inq_cmd_t;
 
 /*
@@ -106,18 +106,18 @@ struct rc_scsi_cmd {
  * SCSI inquiry data
  */
 typedef struct rc_inq_data {
-	uint8_t dev_type; // Peripheral qualifier | Peripheral Device type
-	uint8_t dev_qual; // RMB | Device type Qualifier
-	uint8_t version; // ISO version | ECMA version | ANSI-approved version
-	uint8_t data_fmt; // AENC | TrmIOP | Response data format
-	uint8_t add_len; // Additional length (n-4)
-	uint8_t pad1[2]; // reserved - must be zero
-	uint8_t flags; // RelAdr | WBus32 | WBus16 | Sync | Linked | reserved |
+	u8 dev_type; // Peripheral qualifier | Peripheral Device type
+	u8 dev_qual; // RMB | Device type Qualifier
+	u8 version; // ISO version | ECMA version | ANSI-approved version
+	u8 data_fmt; // AENC | TrmIOP | Response data format
+	u8 add_len; // Additional length (n-4)
+	u8 pad1[2]; // reserved - must be zero
+	u8 flags; // RelAdr | WBus32 | WBus16 | Sync | Linked | reserved |
 	// CmdQue | SftRe
-	uint8_t vendor_id[8]; // vendor ID
-	uint8_t product_id[16]; // Product ID
-	uint8_t rev_level[4]; // Product Revision Level
-	uint8_t vendor_specific[20];
+	u8 vendor_id[8]; // vendor ID
+	u8 product_id[16]; // Product ID
+	u8 rev_level[4]; // Product Revision Level
+	u8 vendor_specific[20];
 } rc_inq_data_t;
 
 /*
@@ -134,39 +134,39 @@ typedef struct rc_inq_data {
 #define INQD_PDT_QMASK 0xE0 /* Peripheral Device Qualifer Mask */
 
 typedef struct sense_data_s {
-	uint8_t error_code; // 70h (current errors), 71h(deferred errors)
-	uint8_t valid : 1; // A valid bit of one indicates that the information
+	u8 error_code; // 70h (current errors), 71h(deferred errors)
+	u8 valid : 1; // A valid bit of one indicates that the information
 	// field contains valid information as defined in
 	// the SCSI-2 Standard.
 
-	uint8_t segment_number; // Only used for COPY, COMPARE, or COPY AND VERIFY
+	u8 segment_number; // Only used for COPY, COMPARE, or COPY AND VERIFY
 
-	uint8_t sense_key : 4; // Sense Key
-	uint8_t reserved : 1;
-	uint8_t ili : 1; // Incorrect length Indicator
-	uint8_t eom : 1; // End Of Medium - reserved for random access
+	u8 sense_key : 4; // Sense Key
+	u8 reserved : 1;
+	u8 ili : 1; // Incorrect length Indicator
+	u8 eom : 1; // End Of Medium - reserved for random access
 	// devices
-	uint8_t file_mark : 1; // file_mark - reserved for random access devices
+	u8 file_mark : 1; // file_mark - reserved for random access devices
 
-	uint8_t information[4]; // for direct-access devices, contains the unsigned
+	u8 information[4]; // for direct-access devices, contains the unsigned
 	// logical block address or Residue associated with
 	// the sense key
-	uint8_t add_sense_len; // number of additional sense bytes to follow
-	uint8_t cmnd_info[4]; // not used
-	uint8_t asc; // Additional Sense Code
-	uint8_t ascq; // Additional Sense Code Qualifier
-	uint8_t fruc; // Field Replaceable Unit Code - not used
+	u8 add_sense_len; // number of additional sense bytes to follow
+	u8 cmnd_info[4]; // not used
+	u8 asc; // Additional Sense Code
+	u8 ascq; // Additional Sense Code Qualifier
+	u8 fruc; // Field Replaceable Unit Code - not used
 
-	uint8_t bit_ptr : 3; // indicates which byte of the CDB or parameter data
+	u8 bit_ptr : 3; // indicates which byte of the CDB or parameter data
 	// was in error
-	uint8_t bpv : 1; // bit pointer valid (BPV): 1- indicates that
+	u8 bpv : 1; // bit pointer valid (BPV): 1- indicates that
 	// the bit_ptr field has valid value
-	uint8_t reserved2 : 2;
-	uint8_t cd : 1; // command data bit: 1- illegal parameter in CDB.
+	u8 reserved2 : 2;
+	u8 cd : 1; // command data bit: 1- illegal parameter in CDB.
 	//                   0- illegal parameter in data.
-	uint8_t sksv : 1;
+	u8 sksv : 1;
 
-	uint8_t field_ptr[2]; // byte of the CDB or parameter data in error
+	u8 field_ptr[2]; // byte of the CDB or parameter data in error
 } sense_data_t;
 
 /*

@@ -81,13 +81,13 @@ extern void rc_wakeup_all_threads(void);
 
 static u32 rc_ahci_regread(void *, u32)
 {
-	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
+	RC_PRINTK(RC_ERROR, "%s: not supported\n", __FUNCTION__);
 	return 0;
 }
 
 static void rc_ahci_regwrite(void *, u32, u32)
 {
-	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
+	RC_PRINTK(RC_ERROR, "%s: not supported\n", __FUNCTION__);
 }
 
 void rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t *dmaHandle, u32 bytes,
@@ -218,7 +218,7 @@ int rc_setup_communications(void)
 		//    We found the interface structure!! Fill in the values
 		//    with what we will use!
 		//
-		// rc_printk(RC_DEBUG, "send_function: offset: %px\n", rc_interface_header->send_function);
+		// RC_PRINTK(RC_DEBUG, "send_function: offset: %px\n", rc_interface_header->send_function);
 		rc_interface_header->receive_function = &rc_receive_msg;
 		rc_interface_header->schedule_dpc_function =
 			&rc_msg_schedule_dpc;
@@ -287,23 +287,23 @@ void rc_msg_suspend(rc_softstate_t *state, rc_adapter_t *adapter)
 	rc_send_arg_t args;
 	int i;
 
-	rc_printk(RC_NOTE, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_NOTE, "%s\n", __FUNCTION__);
 
 	state->is_suspended = 1;
 
 	// flush the logical disk cache
-	rc_printk(RC_ALERT, "rc_msg_suspend: flushing cache\n");
+	RC_PRINTK(RC_ALERT, "rc_msg_suspend: flushing cache\n");
 	rc_msg_send_srb_function(state, RC_SRB_FLUSH);
 
-	rc_printk(RC_ALERT, "rc_msg_suspend: shutting down\n");
+	RC_PRINTK(RC_ALERT, "rc_msg_suspend: shutting down\n");
 	rc_msg_send_srb_function(state, RC_SRB_SHUTDOWN);
 
 	if ((state->state & ENABLE_TIMER) == ENABLE_TIMER) {
-		rc_printk(RC_INFO2, "rc_msg_shutdown: stop OSIC timer\n");
+		RC_PRINTK(RC_INFO2, "rc_msg_shutdown: stop OSIC timer\n");
 		state->state &= ~ENABLE_TIMER;
 		del_timer_sync(&state->timer);
 	}
-	rc_printk(RC_ALERT, "rc_msg_suspend: pausing for 1/4 second\n");
+	RC_PRINTK(RC_ALERT, "rc_msg_suspend: pausing for 1/4 second\n");
 	rc_msg_timeout(HZ >> 2);
 
 	// make sure all IOs are completed
@@ -318,7 +318,7 @@ void rc_msg_suspend(rc_softstate_t *state, rc_adapter_t *adapter)
 			args.u.adapterMemory = rc_dev[i]->private_mem.vaddr;
 			rc_send_msg(&args);
 		} else {
-			rc_printk(RC_ERROR, "%s: no adapter memory :( \n",
+			RC_PRINTK(RC_ERROR, "%s: no adapter memory :( \n",
 				  __FUNCTION__);
 		}
 	}
@@ -345,7 +345,7 @@ void rc_msg_resume(rc_softstate_t *state, rc_adapter_t *adapter)
 	rc_send_arg_t args;
 	int i;
 
-	rc_printk(RC_NOTE, "%s\n", __FUNCTION__);
+	RC_PRINTK(RC_NOTE, "%s\n", __FUNCTION__);
 
 	// don't lock, holding a spinlock while restarting the controller makes linux unhappy
 	// since the timer and interrupts are disable this should be fine
@@ -356,7 +356,7 @@ void rc_msg_resume(rc_softstate_t *state, rc_adapter_t *adapter)
 			args.u.adapterMemory = rc_dev[i]->private_mem.vaddr;
 			rc_send_msg(&args);
 		} else {
-			rc_printk(RC_ERROR, "%s: no adapter memory :( \n",
+			RC_PRINTK(RC_ERROR, "%s: no adapter memory :( \n",
 				  __FUNCTION__);
 		}
 	}
@@ -382,16 +382,16 @@ void rc_msg_shutdown(rc_softstate_t *statep)
 	 * send a message to the OSIC to shutdown
 	 * have to wait for it to stop doing IO.
 	 */
-	rc_printk(RC_INFO2, "rc_msg_shutdown: flushing cache OSIC\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_shutdown: flushing cache OSIC\n");
 	rc_msg_send_srb_function(statep, RC_SRB_FLUSH);
 
-	rc_printk(RC_INFO2, "rc_msg_shutdown: shutting down OSIC\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_shutdown: shutting down OSIC\n");
 	rc_msg_send_srb_function(statep, RC_SRB_SHUTDOWN);
 
-	rc_printk(RC_INFO2, "rc_msg_shutdown: stop OSIC timer\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_shutdown: stop OSIC timer\n");
 	statep->state &= ~ENABLE_TIMER;
 	del_timer_sync(&statep->timer);
-	rc_printk(RC_DEBUG, "rc_msg_shutdown: pausing for 1/4 second\n");
+	RC_PRINTK(RC_DEBUG, "rc_msg_shutdown: pausing for 1/4 second\n");
 	rc_msg_timeout(HZ >> 2);
 
 	// make sure all IOs are completed
@@ -406,25 +406,25 @@ void rc_msg_shutdown(rc_softstate_t *statep)
 			args.u.adapterMemory = rc_dev[i]->private_mem.vaddr;
 			rc_send_msg(&args);
 		} else {
-			rc_printk(RC_ERROR, "%s: no adapter memory :( \n",
+			RC_PRINTK(RC_ERROR, "%s: no adapter memory :( \n",
 				  __FUNCTION__);
 		}
 	}
 	state->osic_locked = 0;
 	spin_unlock(&state->osic_lock);
 
-	rc_printk(RC_INFO2, "rc_msg_shutdown: OSIC disabled \n");
+	RC_PRINTK(RC_INFO2, "rc_msg_shutdown: OSIC disabled \n");
 	statep->state &= ~USE_OSIC;
 
 	rc_stop_all_threads();
 	rc_event_shutdown();
 
-	rc_printk(RC_INFO2, "rc_msg_shutdown: shutting down srb tasklets\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_shutdown: shutting down srb tasklets\n");
 	tasklet_kill(&statep->srb_done.tasklet);
 	tasklet_kill(&statep->srb_q.tasklet);
 
 	if (statep->virtual_memory) {
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "rc_msg_shutdown: free virtual memory %px\n",
 			  statep->virtual_memory);
 		vfree(statep->virtual_memory);
@@ -433,7 +433,7 @@ void rc_msg_shutdown(rc_softstate_t *statep)
 	}
 
 	if (statep->cache_memory) {
-		rc_printk(RC_DEBUG, "rc_msg_shutdown: free cache memory %px\n",
+		RC_PRINTK(RC_DEBUG, "rc_msg_shutdown: free cache memory %px\n",
 			  statep->cache_memory);
 		vfree(statep->cache_memory);
 		statep->cache_memory_size = 0;
@@ -499,7 +499,7 @@ void rc_msg_pci_config(rc_pci_op_t *pci_op, u32 call_type)
 			// set error status, anything non-zero will do
 			pci_op->status = call_type;
 		}
-		rc_printk(RC_WARN, "%s: error: call_type: %d\n", __FUNCTION__,
+		RC_PRINTK(RC_WARN, "%s: error: call_type: %d\n", __FUNCTION__,
 			  call_type);
 		//} else {
 		// RC_PRINTK(RC_WARN, "%s: call_type=%d, offset=0x%02X, val=0x%08X\n",
@@ -531,7 +531,7 @@ int rc_wq_handler(void *work)
 
 			switch (rc_work->call_type) {
 			case RC_ACPI_INVOKE:
-				rc_printk(
+				RC_PRINTK(
 					RC_INFO,
 					"### %s(): Invoke ACPI method \"%s\"\n",
 					__FUNCTION__, rc_work->method);
@@ -655,7 +655,6 @@ int rc_wq_handler(void *work)
 			default:
 				// Only other call really is RC_QUEUE_WORK which is just a way
 				//  to have the callback executed. Falling through allows that.
-				;
 			}
 
 			if (args->u.acpi.callback) {
@@ -707,7 +706,7 @@ void rc_receive_msg(void)
 	preempt_enable();
 	switch (args->call_type) {
 	case RC_CTR_TEST:
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "rc_receive_msg Send/Receive test passed\n");
 		break;
 
@@ -716,7 +715,7 @@ void rc_receive_msg(void)
 		break;
 
 	case RC_CTR_INIT_DONE:
-		rc_printk(RC_DEBUG, "rc_receive_msg: init done callback\n");
+		RC_PRINTK(RC_DEBUG, "rc_receive_msg: init done callback\n");
 		up(&state->init_sema);
 		break;
 
@@ -755,7 +754,7 @@ void rc_receive_msg(void)
 
 	case RC_CTR_WAIT_MICROSECONDS:
 		delay = args->u.wait_microseconds.microseconds;
-		//        rc_printk(RC_DEBUG2, "delay %d microseconds\n", delay);
+		//        RC_PRINTK(RC_DEBUG2, "delay %d microseconds\n", delay);
 
 		// Touch ALL cpu's touch_timestamp to avoid
 		// erroneous Soft CPU lockup's.
@@ -919,7 +918,7 @@ void rc_receive_msg(void)
 	} break;
 
 	default:
-		rc_printk(RC_WARN, "rc_receive_msg: unknown msg type 0x%x\n",
+		RC_PRINTK(RC_WARN, "rc_receive_msg: unknown msg type 0x%x\n",
 			  args->call_type);
 		break;
 	}
@@ -935,13 +934,13 @@ void rc_msg_resume_work(void)
 {
 	rc_adapter_t *adapter;
 	adapter = rc_dev[0];
-	rc_printk(RC_ERROR, "%s: schedule resume tasklet\n", __FUNCTION__);
+	RC_PRINTK(RC_ERROR, "%s: schedule resume tasklet\n", __FUNCTION__);
 	rc_msg_resume(&rc_state, adapter);
 }
 
 void rc_msg_suspend_work(rc_adapter_t *adapter)
 {
-	rc_printk(RC_ERROR, "%s: schedule suspend tasklet\n", __FUNCTION__);
+	RC_PRINTK(RC_ERROR, "%s: schedule suspend tasklet\n", __FUNCTION__);
 	rc_msg_suspend(&rc_state, adapter);
 }
 
@@ -967,7 +966,7 @@ void rc_msg_cpuid(unsigned int function, unsigned int *eax, unsigned int *ebx,
 {
 	cpuid(function, eax, ebx, ecx, edx);
 
-	rc_printk(RC_DEBUG2,
+	RC_PRINTK(RC_DEBUG2,
 		  "rc_msg_cpuid eax=0x%x, ebx=0x%x, ecx=0x%x, edx=0x%x\n", *eax,
 		  *ebx, *ecx, *edx);
 }
@@ -986,7 +985,7 @@ int rc_msg_init(rc_softstate_t *state)
 	 * find the initialization struct and fill in our function pointer
 	 */
 	if (rc_setup_communications() == 0) {
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  "rc_msg_init: could not find init structure\n");
 		return (1);
 	}
@@ -1051,7 +1050,7 @@ int rc_msg_init(rc_softstate_t *state)
 		TwoTripWriteRate << 1;
 
 	if (TwoTripWriteRate != TWO_TRIP_WRITE_RATE_DEFAULT)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter TwoTripWriteRate = %d\n",
 			  TwoTripWriteRate);
 
@@ -1065,7 +1064,7 @@ int rc_msg_init(rc_softstate_t *state)
 		OneTripWriteRate << 1;
 
 	if (OneTripWriteRate != ONE_TRIP_WRITE_RATE_DEFAULT)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter OneTripWriteRate = %d\n",
 			  OneTripWriteRate);
 
@@ -1080,7 +1079,7 @@ int rc_msg_init(rc_softstate_t *state)
 		WriteBypassThreshold << 1;
 
 	if (WriteBypassThreshold != WRITE_BYPASS_THRESHOLD_DEFAULT)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter WriteBypassThreshold = %d\n",
 			  WriteBypassThreshold);
 
@@ -1095,7 +1094,7 @@ int rc_msg_init(rc_softstate_t *state)
 		ActiveRaid5FlushesLimit;
 
 	if (ActiveRaid5FlushesLimit != ACTIVE_RAID5_FLUSHES_LIMIT_DEFAULT)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter ActiveRaid5FlushesLimit = "
 			  "%d\n",
 			  ActiveRaid5FlushesLimit);
@@ -1107,7 +1106,7 @@ int rc_msg_init(rc_softstate_t *state)
 	args.u.get_info.tunable_parameters[rc_DoSmart] = DoSmart;
 
 	if (DoSmart != 1)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter DoSmart = %d, SMART polling"
 			  " disabled\n",
 			  DoSmart);
@@ -1120,7 +1119,7 @@ int rc_msg_init(rc_softstate_t *state)
 		SmartPollInterval;
 
 	if (SmartPollInterval != SMART_POLL_INTERVAL_DEFAULT)
-		rc_printk(RC_INFO,
+		RC_PRINTK(RC_INFO,
 			  "rcraid: set parameter SmartPollInterval = %d "
 			  "seconds\n",
 			  SmartPollInterval);
@@ -1145,11 +1144,11 @@ int rc_msg_init(rc_softstate_t *state)
 		void *addr;
 		adapter = rc_dev[i];
 
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "rc_msg_init: get private mem for controller %d\n",
 			  i);
 		if (adapter == (rc_adapter_t *)0) {
-			rc_printk(RC_ERROR, "rc_msg_init null adapter\n");
+			RC_PRINTK(RC_ERROR, "rc_msg_init null adapter\n");
 		}
 		addr = dma_alloc_coherent(&adapter->pdev->dev,
 					  state->memsize_per_controller,
@@ -1157,7 +1156,7 @@ int rc_msg_init(rc_softstate_t *state)
 					  GFP_ATOMIC);
 
 		if (addr == (void *)0) {
-			rc_printk(RC_ERROR,
+			RC_PRINTK(RC_ERROR,
 				  "rc_msg_init: can not alloc %d bytes of per "
 				  "controller memory\n",
 				  state->memsize_per_controller);
@@ -1167,7 +1166,7 @@ int rc_msg_init(rc_softstate_t *state)
 
 		adapter->private_mem.vaddr = addr;
 		adapter->private_mem.size = state->memsize_per_controller;
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "rc_msg_init: private mem controller %d @ %px len "
 			  "%d\n",
 			  i, adapter->private_mem.vaddr,
@@ -1209,12 +1208,12 @@ int rc_msg_init(rc_softstate_t *state)
 		args.u.init_controller.regwrite_unsupported = rc_ahci_regwrite;
 
 		// Fill in the rest
-		rc_printk(RC_DEBUG,
+		RC_PRINTK(RC_DEBUG,
 			  "rc_msg_init: init controller %d - &args %px\n", i,
 			  &args);
 
 		rc_send_msg(&args);
-		rc_printk(RC_ALERT, "rc_msg_init: init controller %d Done\n",
+		RC_PRINTK(RC_ALERT, "rc_msg_init: init controller %d Done\n",
 			  i);
 		/* return status ??? */
 	}
@@ -1226,7 +1225,7 @@ int rc_msg_init(rc_softstate_t *state)
 	if (state->virtual_memory_size) {
 		if ((state->virtual_memory =
 			     vmalloc(state->virtual_memory_size)) == 0) {
-			rc_printk(RC_ERROR,
+			RC_PRINTK(RC_ERROR,
 				  "rc_msg_init: can't allocate virtual memory, "
 				  "size %d bytes\n",
 				  state->virtual_memory_size);
@@ -1235,7 +1234,7 @@ int rc_msg_init(rc_softstate_t *state)
 		}
 		memset(state->virtual_memory, 0, state->virtual_memory_size);
 	}
-	rc_printk(RC_DEBUG, "rc_msg_init: alloc %d @ %px for virtual memory\n",
+	RC_PRINTK(RC_DEBUG, "rc_msg_init: alloc %d @ %px for virtual memory\n",
 		  state->virtual_memory_size, state->virtual_memory);
 
 	/* Allocate cache memory for the core */
@@ -1245,7 +1244,7 @@ int rc_msg_init(rc_softstate_t *state)
 	if (args.u.init_controller.cache_memory_size_needed) {
 		if ((state->cache_memory = vmalloc(state->cache_memory_size)) ==
 		    0) {
-			rc_printk(
+			RC_PRINTK(
 				RC_ERROR,
 				"rc_msg_init: can't allocate %u bytes of cache"
 				" memory\n",
@@ -1255,7 +1254,7 @@ int rc_msg_init(rc_softstate_t *state)
 		}
 		memset(state->cache_memory, 0, state->cache_memory_size);
 	}
-	rc_printk(RC_DEBUG, "rc_msg_init: alloc %d @ %px for cache memory\n",
+	RC_PRINTK(RC_DEBUG, "rc_msg_init: alloc %d @ %px for cache memory\n",
 		  state->cache_memory_size, state->cache_memory);
 
 	/*
@@ -1274,7 +1273,7 @@ int rc_msg_init(rc_softstate_t *state)
 	args.u.final_init.cache_memory_id = RC_MEM_VADDR;
 	args.u.final_init.timer_interval = state->timer_interval * period;
 
-	rc_printk(RC_INFO2, "rc_msg_init: doing final init\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_init: doing final init\n");
 
 	sema_init(&state->init_sema, 0);
 
@@ -1308,10 +1307,10 @@ int rc_msg_init(rc_softstate_t *state)
 	mod_timer(&state->timer, jiffies + state->timer_interval);
 	state->state |= ENABLE_TIMER;
 
-	rc_printk(RC_INFO2,
+	RC_PRINTK(RC_INFO2,
 		  "rc_msg_init: timer started.... wait for callback \n");
 	down(&state->init_sema);
-	rc_printk(RC_INFO2, "rc_msg_init: we're back\n");
+	RC_PRINTK(RC_INFO2, "rc_msg_init: we're back\n");
 
 	state->state |= INIT_DONE;
 
@@ -1436,7 +1435,7 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	 * TODO: maybe this should be a retry?
 	 */
 	if (scsi_sg_count(scp) > RC_SG_MAX_ELEMENTS) {
-		rc_printk(RC_ERROR,
+		RC_PRINTK(RC_ERROR,
 			  "rc_msg_send_srb:  scatter-gather list too large "
 			  "(%d)\n",
 			  scsi_sg_count(scp));
@@ -1451,13 +1450,13 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	 */
 	if ((srb = kmalloc(size, GFP_ATOMIC)) == 0) {
 		if ((srb = kmalloc(size << 1, GFP_ATOMIC)) == 0) {
-			rc_printk(
+			RC_PRINTK(
 				RC_DEBUG,
 				"rc_msg_send_srb: could not alloc %d bytes for"
 				" srb\n",
 				size);
 			rc_msg_stats(rc_stats_buf, sizeof(rc_stats_buf));
-			rc_printk(RC_DEBUG, rc_stats_buf);
+			RC_PRINTK(RC_DEBUG, rc_stats_buf);
 			return SCSI_MLQUEUE_HOST_BUSY;
 		}
 	}
@@ -1499,7 +1498,7 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 
 	rc_msg_build_sg(srb);
 
-	// rc_printk(RC_DEBUG2, "\nrc_msg_send_srb: seq_num: %d B/T/L %d/%d/%d\n",
+	// RC_PRINTK(RC_DEBUG2, "\nrc_msg_send_srb: seq_num: %d B/T/L %d/%d/%d\n",
 	//           srb->seq_num, bus, target, lun);
 	// rc_dump_scp(scp);
 
@@ -1543,7 +1542,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 
 	state = &rc_state;
 
-	// rc_printk(RC_DEBUG2, "\nrc_msg_process_srb: seq_num: %d "
+	// RC_PRINTK(RC_DEBUG2, "\nrc_msg_process_srb: seq_num: %d "
 	//           "B/T/L %d/%d/%d\n", srb->seq_num, srb->bus, srb->target,
 	//           srb->lun);
 
@@ -1557,7 +1556,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 		atomic_dec(&state->stats.target_pending[srb->target]);
 		atomic_dec(&state->stats.scb_pending);
 
-		rc_printk(RC_WARN, "rc_msg_process_srb: seq_num %d Aborted\n",
+		RC_PRINTK(RC_WARN, "rc_msg_process_srb: seq_num %d Aborted\n",
 			  srb->seq_num);
 		srb->seq_num = -1;
 		kfree(srb);
@@ -1590,7 +1589,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	 */
 
 	if (queued) {
-		// rc_printk(RC_DEBUG2, "rc_msg_process_srb: seq_num %d Queued\n",
+		// RC_PRINTK(RC_DEBUG2, "rc_msg_process_srb: seq_num %d Queued\n",
 		//           srb->seq_num);
 		return;
 	}
@@ -1600,7 +1599,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	 */
 
 	if (srb->seq_num == -1) {
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "rc_msg_process_srb: seq_num %d  already freed\n",
 			  srb->seq_num);
 		return;
@@ -1610,7 +1609,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	 * unexpected status PENDING
 	 */
 	if (srb->status == RC_SRB_STATUS_PENDING) {
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "rc_msg_process_srb: seq_num %d STATUS_PENDING\n",
 			  srb->seq_num);
 		rc_dump_scp((struct scsi_cmnd *)srb->scsi_context);
@@ -1620,7 +1619,7 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	if (!queued && (srb->status == RC_SRB_STATUS_DEVICE_OFFLINE)) {
 		if (scp && scp->device)
 			scsi_device_set_state(scp->device, SDEV_OFFLINE);
-		rc_printk(RC_WARN, "%s: Bus/Target/Lun %d/%d/%d OFFLINE\n",
+		RC_PRINTK(RC_WARN, "%s: Bus/Target/Lun %d/%d/%d OFFLINE\n",
 			  __FUNCTION__, srb->bus, srb->target, srb->lun);
 		rc_msg_srb_done(srb);
 		return;
@@ -1809,7 +1808,7 @@ void rc_msg_srb_done(rc_srb_t *srb)
 
 	srb->next = (rc_srb_t *)0;
 
-	// rc_printk(RC_DEBUG2, "rc_msg_srb_done: seq_num %d  queued\n",
+	// RC_PRINTK(RC_DEBUG2, "rc_msg_srb_done: seq_num %d  queued\n",
 	//           srb->seq_num);
 
 	/*
@@ -1851,7 +1850,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 		rc_softstate_t *state;
 
 		state = &rc_state;
-		rc_printk(RC_DEBUG, "%s: shutdown complete\n", __FUNCTION__);
+		RC_PRINTK(RC_DEBUG, "%s: shutdown complete\n", __FUNCTION__);
 		kfree(srb);
 		up(&state->init_sema);
 		return;
@@ -1869,7 +1868,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 
 	if ((scp = (struct scsi_cmnd *)srb->scsi_context) == NULL) {
 		/* the request was aborted, so forget about it... */
-		rc_printk(RC_WARN, "%s: seq_num %d  Aborted\n", __FUNCTION__,
+		RC_PRINTK(RC_WARN, "%s: seq_num %d  Aborted\n", __FUNCTION__,
 			  srb->seq_num);
 		srb->seq_num = -1;
 		kfree(srb);
@@ -1879,7 +1878,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	rc_scsi_pointer(scp)->srb = NULL;
 
 	if (srb->status == RC_SRB_STATUS_SUCCESS) {
-		// rc_printk(RC_DEBUG2, "%s: seq_num %d SUCCESS\n", __FUNCTION__,
+		// RC_PRINTK(RC_DEBUG2, "%s: seq_num %d SUCCESS\n", __FUNCTION__,
 		//           srb->seq_num);
 		scp->result = DID_OK << 16 | COMMAND_COMPLETE << 8 | GOOD;
 
@@ -1907,7 +1906,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	    srb->status == RC_SRB_STATUS_INVALID_LUN ||
 	    srb->status == RC_SRB_STATUS_INVALID_TARGET_ID ||
 	    srb->status == RC_SRB_STATUS_INVALID_PATH_ID) {
-		rc_printk(RC_DEBUG2, "%s: seq_num %d STATUS_NO_DEVICE\n",
+		RC_PRINTK(RC_DEBUG2, "%s: seq_num %d STATUS_NO_DEVICE\n",
 			  __FUNCTION__, srb->seq_num);
 		scp->result = DID_BAD_TARGET << 16;
 		GET_IO_REQUEST_LOCK_IRQSAVE(irql);
@@ -1921,7 +1920,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	/*
 	 * Something went wrong.  May need to check specific error codes
 	 */
-	rc_printk(RC_DEBUG2, "%s: seq_num %d ERROR 0x%x\n", __FUNCTION__,
+	RC_PRINTK(RC_DEBUG2, "%s: seq_num %d ERROR 0x%x\n", __FUNCTION__,
 		  srb->seq_num, srb->status);
 	/*
 	 * dump the command that failed
@@ -1969,7 +1968,7 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	int queued;
 	int sg_list_size;
 
-	rc_printk(RC_DEBUG, "rc_msg_send_srb_function\n");
+	RC_PRINTK(RC_DEBUG, "rc_msg_send_srb_function\n");
 
 	sg_list_size = sizeof(rc_sg_list_t) +
 		       (RC_SG_MAX_ELEMENTS - 1) * sizeof(rc_sg_elem_t);
@@ -1980,7 +1979,7 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	 * tasklet
 	 */
 	if ((srb = kmalloc(size, GFP_ATOMIC)) == 0) {
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "rc_msg_send_srb_function: could not alloc %d "
 			  "bytes for srb\n",
 			  size);
@@ -2025,7 +2024,7 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	 */
 
 	if (!queued) {
-		rc_printk(RC_WARN,
+		RC_PRINTK(RC_WARN,
 			  "rc_msg_send_srb_function: seq_num %d  NOT Queued\n",
 			  srb->seq_num);
 		kfree(srb);
@@ -2035,10 +2034,10 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	/*
 	 * wait for the srb_function to complete
 	 */
-	rc_printk(RC_DEBUG,
+	RC_PRINTK(RC_DEBUG,
 		  "rc_msg_send_srb_function: waiting for completion\n");
 	down(&state->init_sema);
-	rc_printk(RC_DEBUG, "rc_msg_send_srb_function: complete\n");
+	RC_PRINTK(RC_DEBUG, "rc_msg_send_srb_function: complete\n");
 	return;
 }
 
@@ -2146,7 +2145,7 @@ void rc_msg_map_phys_to_virt(struct map_memory_s *map)
 
 	map->address = 0;
 	if (adapter->hardware.irq == 0) {
-		rc_printk(RC_ERROR, "%s: WARNING adapter shutdown\n",
+		RC_PRINTK(RC_ERROR, "%s: WARNING adapter shutdown\n",
 			  __FUNCTION__);
 	} else if ((map->memory_id & MEM_TYPE) == RC_MEM_PADDR) {
 		map->address = (uintptr_t)phys_to_virt(map->physical_address);
@@ -2235,7 +2234,7 @@ void rc_msg_map_mem(struct map_memory_s *map)
 	adapter = (rc_adapter_t *)map->dev_handle;
 
 	if (adapter->hardware.irq == 0) {
-		rc_printk(RC_ERROR, "%s: WARNING adapter shutdown\n",
+		RC_PRINTK(RC_ERROR, "%s: WARNING adapter shutdown\n",
 			  __FUNCTION__);
 		return;
 	}
@@ -2244,7 +2243,7 @@ void rc_msg_map_mem(struct map_memory_s *map)
 	if ((map->memory_id & MEM_TYPE) == RC_MEM_PADDR) {
 		map->physical_address = map->address;
 	} else if ((map->memory_id & MEM_TYPE) == RC_MEM_VADDR) {
-		vaddr = (void *)(uintptr_t)map->address;
+		vaddr = (void *)map->address;
 		len = (size_t)map->number_bytes;
 
 		private_start = adapter->private_mem.vaddr;
@@ -2255,7 +2254,7 @@ void rc_msg_map_mem(struct map_memory_s *map)
 		 */
 		if ((vaddr >= private_start) && (vaddr < private_end)) {
 			if (vaddr + len >= private_end) {
-				rc_printk(
+				RC_PRINTK(
 					RC_WARN,
 					"rc_msg_map_mem: invalid address range: %px len %d\n",
 					vaddr, len);
@@ -2305,7 +2304,7 @@ void rc_msg_map_mem(struct map_memory_s *map)
 		}
 	} else {
 		/* No known memory type is coding error */
-		rc_printk(RC_ERROR, "rc_msg_map_mem: invalid memory type %x\n",
+		RC_PRINTK(RC_ERROR, "rc_msg_map_mem: invalid memory type %x\n",
 			  map->memory_id);
 		BUG();
 	}
@@ -2358,7 +2357,7 @@ void rc_msg_unmap_mem(struct unmap_memory_s *unmap)
 	 */
 	if ((dma_addr >= private_start) && (dma_addr < private_end)) {
 		if (dma_addr + len >= private_end) {
-			rc_printk(RC_WARN,
+			RC_PRINTK(RC_WARN,
 				  "rc_msg_unmap_mem: invalid address range: "
 				  "0x%llx len %d\n",
 				  (u64)dma_addr, len);
@@ -2530,15 +2529,15 @@ static void rc_sysrq_intr(int key)
 
 	tasklet_schedule(&state->srb_q.tasklet);
 	rc_wakeup_all_threads();
-	rc_printk(RC_ALERT, "scheduling tasklet interrupt\n");
+	RC_PRINTK(RC_ALERT, "scheduling tasklet interrupt\n");
 }
 
 static void rc_sysrq_state(int key)
 {
 	rc_msg_stats(rc_stats_buf, sizeof(rc_stats_buf));
-	rc_printk(RC_ALERT, rc_stats_buf);
+	RC_PRINTK(RC_ALERT, rc_stats_buf);
 	rc_mop_stats(rc_stats_buf, sizeof(rc_stats_buf));
-	rc_printk(RC_ALERT, rc_stats_buf);
+	RC_PRINTK(RC_ALERT, rc_stats_buf);
 }
 
 acpi_status rc_acpi_evaluate_object(acpi_handle handle, char *method, void *ret,
@@ -2580,7 +2579,7 @@ acpi_status rc_acpi_evaluate_object(acpi_handle handle, char *method, void *ret,
 				memcpy(ret, acpi_obj, sz);
 				break;
 			default:
-				rc_printk(
+				RC_PRINTK(
 					RC_WARN,
 					"### %s(): ACPI method \"%s\" returned object type = %d\n",
 					__FUNCTION__, method, acpi_obj->type);
