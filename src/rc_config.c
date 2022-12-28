@@ -8,7 +8,6 @@
 #include <linux/compat.h>
 #include <linux/completion.h>
 #include <linux/fs.h>
-#include <linux/gfp_types.h>
 #include <linux/interrupt.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>

@@ -166,6 +166,17 @@ MODULE_PARM_DESC(SmartPollInterval, "SMART poll interval in seconds");
 static char sbuf[256];
 
 /*
+ * Address scsi command interface change.
+ */
+inline static void rc_scsi_done(struct scsi_cmnd* scp) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,16,0)
+	scp->scsi_done(scp);
+#else
+	scsi_done(scp);
+#endif
+}
+
+/*
  * Simple wrapper function to map printf calls from the core to vprintk
  */
 int32_t rc_vprintf(u32 severity, const char *format, va_list ar)
@@ -1440,7 +1451,8 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 			  "(%d)\n",
 			  scsi_sg_count(scp));
 		scp->result = DID_NO_CONNECT << 16;
-		scsi_done(scp);
+
+		rc_scsi_done(scp);
 		return 0;
 	}
 
@@ -1892,7 +1904,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 		    0) // sense data returned
 			scp->result = SAM_STAT_CHECK_CONDITION;
 		GET_IO_REQUEST_LOCK_IRQSAVE(irql);
-		scsi_done(scp);
+		rc_scsi_done(scp);
 		PUT_IO_REQUEST_LOCK_IRQRESTORE(irql);
 		srb->seq_num = -1;
 		kfree(srb);
@@ -1910,7 +1922,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 			  __FUNCTION__, srb->seq_num);
 		scp->result = DID_BAD_TARGET << 16;
 		GET_IO_REQUEST_LOCK_IRQSAVE(irql);
-		scsi_done(scp);
+		rc_scsi_done(scp);
 		PUT_IO_REQUEST_LOCK_IRQRESTORE(irql);
 		srb->seq_num = -1;
 		kfree(srb);
@@ -1949,7 +1961,7 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	}
 
 	GET_IO_REQUEST_LOCK_IRQSAVE(irql);
-	scsi_done(scp);
+	rc_scsi_done(scp);
 	PUT_IO_REQUEST_LOCK_IRQRESTORE(irql);
 	srb->seq_num = -1;
 	kfree(srb);

@@ -144,7 +144,7 @@ static int rc_slave_cfg(struct scsi_device *sdev);
 static int rc_bios_params(struct scsi_device *sdev, struct block_device *bdev,
 			  sector_t capacity, int geom[]);
 
-static int rc_queue_cmd_lck(struct scsi_cmnd *scp);
+static int rc_queue_cmd_lck(struct scsi_cmnd *scp, /* any other params */...);
 
 #ifdef RC_AHCI_SUPPORT
 // Additions for AHCI driver
@@ -261,8 +261,9 @@ typedef struct rc_bios_disk_parameters {
 	int cylinders;
 } rc_bios_disk_parameters_t;
 
-static DEF_SCSI_QCMD(rc_queue_cmd) static inline struct rc_scsi_cmd
-	*rc_scsi_pointer(struct scsi_cmnd *cmd)
+static DEF_SCSI_QCMD(rc_queue_cmd);
+
+static inline struct rc_scsi_cmd *rc_scsi_pointer(struct scsi_cmnd *cmd)
 {
 	return scsi_cmd_priv(cmd);
 }
@@ -1407,21 +1408,8 @@ irqreturn_t rc_nvme_isr(int irq, void *arg, struct pt_regs *regs)
  * Queues a SCSI command
  */
 
-int rc_queue_cmd_lck(struct scsi_cmnd *scp)
+int rc_queue_cmd_lck(struct scsi_cmnd *scp, ...)
 {
-	//#define FAIL_ALL_IO 0
-
-#ifdef FAIL_ALL_IO
-	scp->result = DID_NO_CONNECT << 16;
-	scsi_done(scp);
-	return 0;
-#endif
-
-#if 0
-	RC_PRINTK(RC_DEBUG2, "\trc_queue_cmd B/T/L %d/%d/%d\n",
-		  scp->device->channel, scp->device->id, scp->device->lun);
-#endif
-
 	// If we are suspended(controller is not restarted) block any IO from coming in
 	if ((rc_state.is_suspended == 1) ||
 	    ((rc_state.state & SHUTDOWN) == SHUTDOWN)) {
