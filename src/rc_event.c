@@ -32,16 +32,15 @@ typedef struct rc_event_thread_s {
 	int num_srb;
 	rc_srb_queue_t cfg_change_detect;
 	rc_srb_queue_t cfg_change_response;
-	rc_uint32_t targets[MAX_ARRAY];
+	u32 targets[MAX_ARRAY];
 } rc_event_thread_t;
 
 static rc_event_thread_t rc_event_thread;
 
-static void rc_cfg_change_detect(rc_uint32_t type, rc_uint32_t bus, int flags);
+static void rc_cfg_change_detect(u32 type, u32 bus, int flags);
 static void rc_cfg_change_detect_tasklet(unsigned long arg);
 static void rc_cfg_change_response(struct rc_srb_s *srb);
-static void rc_send_inq(rc_uint32_t bus, rc_uint32_t target, rc_uint32_t lun,
-			int update_mode);
+static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode);
 static void rc_inq_callback(rc_srb_t *srb);
 static int rc_notify_scsi_layer(int bus, int target, int lun, int present);
 static int rc_event_kthread(void *arg);
@@ -55,8 +54,8 @@ int rc_event_init(void)
 	memset(tp, 0, sizeof(rc_event_thread_t));
 
 	/*
-   * setup tasklet to catch config change events;
-   */
+	 * setup tasklet to catch config change events;
+	 */
 
 	tp->cfg_change_detect.head = (rc_srb_t *)0;
 	tp->cfg_change_detect.tail = (rc_srb_t *)0;
@@ -66,9 +65,9 @@ int rc_event_init(void)
 		     rc_cfg_change_detect_tasklet, (unsigned long)tp);
 
 	/*
-   * response queue
-   * Use a kernel thread so that the thread can sleep
-   */
+	 * response queue
+	 * Use a kernel thread so that the thread can sleep
+	 */
 	tp->cfg_change_response.head = (rc_srb_t *)0;
 	tp->cfg_change_response.tail = (rc_srb_t *)0;
 	spin_lock_init(&tp->cfg_change_response.lock);
@@ -97,7 +96,7 @@ void rc_event_shutdown(void)
 	}
 }
 
-void rc_event(rc_uint32_t type, rc_uint8_t bus, int update_mode)
+void rc_event(u32 type, u8 bus, int update_mode)
 {
 	rc_srb_t *srb;
 	unsigned long irql;
@@ -164,7 +163,7 @@ static void rc_cfg_change_detect_tasklet(unsigned long arg)
 {
 	unsigned long irql;
 	rc_srb_t *srb;
-	rc_uint32_t type, bus;
+	u32 type, bus;
 	int update_mode;
 	rc_event_thread_t *tp;
 
@@ -174,8 +173,8 @@ static void rc_cfg_change_detect_tasklet(unsigned long arg)
 
 	while (tp->cfg_change_detect.head) {
 		/*
-     * take an srb off the list
-     */
+		 * take an srb off the list
+		 */
 		srb = tp->cfg_change_detect.head;
 		tp->cfg_change_detect.head = srb->next;
 		srb->next = (rc_srb_t *)0;
@@ -193,8 +192,7 @@ static void rc_cfg_change_detect_tasklet(unsigned long arg)
 	spin_unlock_irqrestore(&tp->cfg_change_detect.lock, irql);
 }
 
-static void rc_cfg_change_detect(rc_uint32_t type, rc_uint32_t bus,
-				 int update_mode)
+static void rc_cfg_change_detect(u32 type, u32 bus, int update_mode)
 {
 	unsigned int i;
 
@@ -210,8 +208,7 @@ static void rc_cfg_change_detect(rc_uint32_t type, rc_uint32_t bus,
  * Note: an inquiry could take 30 seconds or more when doing pass-through IO
  * and the scsi command has to time out for nonexistant devices.
  */
-static void rc_send_inq(rc_uint32_t bus, rc_uint32_t target, rc_uint32_t lun,
-			int update_mode)
+static void rc_send_inq(u32 bus, u32 target, u32 lun, int update_mode)
 {
 	unsigned long irql;
 	rc_srb_t *srb;
@@ -275,15 +272,15 @@ static void rc_send_inq(rc_uint32_t bus, rc_uint32_t target, rc_uint32_t lun,
 		srb->flags |= RC_SRB_LOCAL_UPDATE_ONLY;
 
 	/*
-   * Build the inquiry command.
-   * The command has already been memset to zero.
-   */
+	 * Build the inquiry command.
+	 * The command has already been memset to zero.
+	 */
 	inq_cmd->opcode = RC_INQUIRY;
 	inq_cmd->len = sizeof(rc_inq_data_t);
 
 	/*
-   * build the sg list
-   */
+	 * build the sg list
+	 */
 	sg = srb->sg_list;
 	sg->sg_num_elem = 1;
 	sg->sg_mem_type = RC_MEM_VADDR;
@@ -294,11 +291,11 @@ static void rc_send_inq(rc_uint32_t bus, rc_uint32_t target, rc_uint32_t lun,
 		  srb->seq_num, bus, target, lun);
 
 	/*
-   * Add the srb to the tail of the queue, schedule the q tasklet, and
-   * return.  Sending srb's through the OSIC can take a long time.  We don't
-   * want other CPU's spinning on the OSIC lock and just wasting cycles.  So
-   * we queue the srb's and just have one tasklet entering the OSIC.
-   */
+	 * Add the srb to the tail of the queue, schedule the q tasklet, and
+	 * return.  Sending srb's through the OSIC can take a long time.  We don't
+	 * want other CPU's spinning on the OSIC lock and just wasting cycles.  So
+	 * we queue the srb's and just have one tasklet entering the OSIC.
+	 */
 
 	state->stats.scb_total++;
 	state->stats.target_total[target]++;
@@ -371,8 +368,8 @@ static int rc_event_kthread(void *rc_threadp)
 
 		while (tp->cfg_change_response.head) {
 			/*
-       * take an srb off the list
-       */
+			 * take an srb off the list
+			 */
 			srb = tp->cfg_change_response.head;
 			tp->cfg_change_response.head = srb->next;
 			srb->next = (rc_srb_t *)0;
@@ -402,7 +399,7 @@ static int rc_event_kthread(void *rc_threadp)
 
 static void rc_cfg_change_response(struct rc_srb_s *srb)
 {
-	rc_uint32_t bus, target, lun, status;
+	u32 bus, target, lun, status;
 	rc_inq_data_t *inq_data;
 	rc_sg_list_t *sg;
 	char *msg;
@@ -468,11 +465,11 @@ static void rc_cfg_change_response(struct rc_srb_s *srb)
 	/* device present status changed */
 	if (was_present != present) {
 		/*
-     * If the device has been removed but is locked (most likely due to a
-     * mount to this device), then we cannot remove scsi device; otherwise
-     * linux hangs trying to umount later.  If mounts are removed and/or
-     * array is deleted, then we will remove the scsi device.
-     */
+		 * If the device has been removed but is locked (most likely due to a
+		 * mount to this device), then we cannot remove scsi device; otherwise
+		 * linux hangs trying to umount later.  If mounts are removed and/or
+		 * array is deleted, then we will remove the scsi device.
+		 */
 		if (!present && locked) {
 			rc_printk(
 				RC_INFO,

@@ -22,6 +22,7 @@
 
 #include <linux/minmax.h>
 #include <linux/page-flags.h>
+#include <linux/types.h>
 #include <linux/vmalloc.h>
 #include <scsi/sg.h>
 
@@ -63,35 +64,34 @@ static void rc_msg_build_sg_phys(rc_srb_t *srb);
 static void rc_msg_build_sg_virt(rc_srb_t *srb);
 static void rc_msg_free_all_dma_memory(rc_adapter_t *adapter);
 static void rc_msg_free_dma_memory(rc_adapter_t *adapter, void *cpu_addr,
-				   dma_addr_t dmaHandle, rc_uint32_t bytes);
-static void rc_msg_pci_config(rc_pci_op_t *pci_op, rc_uint32_t call_type);
+				   dma_addr_t dmaHandle, u32 bytes);
+static void rc_msg_pci_config(rc_pci_op_t *pci_op, u32 call_type);
 static void rc_msg_resume(rc_softstate_t *state, rc_adapter_t *adapter);
 static void rc_msg_resume_work(void);
 
-static int32_t rc_vprintf(uint32_t sev, const char *fmt, va_list arg);
+static int32_t rc_vprintf(u32 sev, const char *fmt, va_list arg);
 
-static void rc_set_sense_data(char *sense, uint8_t sense_key,
-			      uint8_t sense_code, uint8_t add_sense_code,
-			      uint8_t incorrect_len, uint8_t bit_ptr,
-			      uint32_t field_ptr, uint32_t residue);
+static void rc_set_sense_data(char *sense, u8 sense_key, u8 sense_code,
+			      u8 add_sense_code, u8 incorrect_len, u8 bit_ptr,
+			      u32 field_ptr, u32 residue);
 
 extern void rc_dump_scp(struct scsi_cmnd *scp);
 extern int rc_mop_stats(char *buf, int buf_size);
 extern void rc_wakeup_all_threads(void);
 
-static rc_uint32_t rc_ahci_regread(void *, rc_uint32_t)
+static u32 rc_ahci_regread(void *, u32)
 {
 	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
 	return 0;
 }
 
-static void rc_ahci_regwrite(void *, rc_uint32_t, rc_uint32_t)
+static void rc_ahci_regwrite(void *, u32, u32)
 {
 	rc_printk(RC_ERROR, "%s: not supported\n", __FUNCTION__);
 }
 
-void rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t *dmaHandle,
-			  rc_uint32_t bytes, rc_adapter_t *adapter);
+void rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t *dmaHandle, u32 bytes,
+			  rc_adapter_t *adapter);
 
 extern struct rc_interface_s RC_OurInterfaceStruct;
 
@@ -124,76 +124,43 @@ static char rc_stats_buf[1024];
 #define TWO_TRIP_WRITE_RATE_DEFAULT 16
 #define TWO_TRIP_WRITE_RATE_MIN 8
 #define TWO_TRIP_WRITE_RATE_MAX 1024
-
 static int TwoTripWriteRate = TWO_TRIP_WRITE_RATE_DEFAULT;
-#ifdef module_param_named
-module_param_named(TwoTripWriteRate, TwoTripWriteRate, int, 0);
-#else
-MODULE_PARM(TwoTripWriteRate, "i");
-#endif
+module_param(TwoTripWriteRate, int, 0);
 MODULE_PARM_DESC(TwoTripWriteRate, "min write rate (kb/s) to bypass cache");
 
 #define ONE_TRIP_WRITE_RATE_DEFAULT 8
 #define ONE_TRIP_WRITE_RATE_MIN 4
 #define ONE_TRIP_WRITE_RATE_MAX 256
-
 static int OneTripWriteRate = ONE_TRIP_WRITE_RATE_DEFAULT;
-#ifdef module_param_named
-module_param_named(OneTripWriteRate, OneTripWriteRate, int, 0);
-#else
-MODULE_PARM(OneTripWriteRate, "i");
-#endif
+module_param(OneTripWriteRate, int, 0);
 MODULE_PARM_DESC(OneTripWriteRate, "min write rate (kb/s) to bypass cache");
-;
 
 #define WRITE_BYPASS_THRESHOLD_DEFAULT 50
 #define WRITE_BYPASS_THRESHOLD_MIN 4
 #define WRITE_BYPASS_THRESHOLD_MAX 128
-
 static int WriteBypassThreshold = WRITE_BYPASS_THRESHOLD_DEFAULT;
-#ifdef module_param_named
-module_param_named(WriteBypassThreshold, WriteBypassThreshold, int, 0);
-#else
-MODULE_PARM(WriteBypassThreshold, "i");
-#endif
+module_param(WriteBypassThreshold, int, 0);
 MODULE_PARM_DESC(WriteBypassThreshold, "min write size (kb) to bypass cache");
 
 #define ACTIVE_RAID5_FLUSHES_LIMIT_DEFAULT 64
 #define ACTIVE_RAID5_FLUSHES_LIMIT_MIN 8
 #define ACTIVE_RAID5_FLUSHES_LIMIT_MAX 128
 static int ActiveRaid5FlushesLimit = ACTIVE_RAID5_FLUSHES_LIMIT_DEFAULT;
-
-#ifdef module_param_named
-module_param_named(ActiveRaid5FlushesLimit, ActiveRaid5FlushesLimit, int, 0);
-#else
-MODULE_PARM(ActiveRaid5FlushesLimit, "i");
-#endif
+module_param(ActiveRaid5FlushesLimit, int, 0);
 MODULE_PARM_DESC(ActiveRaid5FlushesLimit, "Active Raid5 Flushes Limit");
 
 static int ForcePhysAddr = 0;
-#ifdef module_param_named
-module_param_named(ForcePhysAddr, ForcePhysAddr, int, 0);
-#else
-MODULE_PARM(ForcePhysAddr, "i");
-#endif
+module_param(ForcePhysAddr, int, 0);
 MODULE_PARM_DESC(ForcePhysAddr,
 		 "force all memory references to use physical addresses");
 
 static unsigned int DoSmart = 1;
-#ifdef module_param_named
-module_param_named(DoSmart, DoSmart, uint, 0444);
-#else
-MODULE_PARM(DoSmart, "i");
-#endif
+module_param(DoSmart, uint, S_IRUGO);
 MODULE_PARM_DESC(DoSmart, "Do SMART polling");
 
 #define SMART_POLL_INTERVAL_DEFAULT 900
 static unsigned int SmartPollInterval = SMART_POLL_INTERVAL_DEFAULT;
-#ifdef module_param_named
-module_param_named(SmartPollInterval, SmartPollInterval, uint, 0444);
-#else
-MODULE_PARM(SmartPollInterval, "i");
-#endif
+module_param(SmartPollInterval, uint, S_IRUGO);
 MODULE_PARM_DESC(SmartPollInterval, "SMART poll interval in seconds");
 
 static char sbuf[256];
@@ -201,7 +168,7 @@ static char sbuf[256];
 /*
  * Simple wrapper function to map printf calls from the core to vprintk
  */
-int32_t rc_vprintf(uint32_t severity, const char *format, va_list ar)
+int32_t rc_vprintf(u32 severity, const char *format, va_list ar)
 {
 	struct timespec64 tv = { 0 };
 	static int rc_saw_newline = 1;
@@ -412,9 +379,9 @@ void rc_msg_shutdown(rc_softstate_t *statep)
 	int i;
 
 	/*
-   * send a message to the OSIC to shutdown
-   * have to wait for it to stop doing IO.
-   */
+	 * send a message to the OSIC to shutdown
+	 * have to wait for it to stop doing IO.
+	 */
 	rc_printk(RC_INFO2, "rc_msg_shutdown: flushing cache OSIC\n");
 	rc_msg_send_srb_function(statep, RC_SRB_FLUSH);
 
@@ -482,11 +449,11 @@ void rc_msg_shutdown(rc_softstate_t *statep)
  *  - dword and byte (32 bit, 8 bit) support only
  *  - word (16 bit) support to be added if/when needed
  */
-void rc_msg_pci_config(rc_pci_op_t *pci_op, rc_uint32_t call_type)
+void rc_msg_pci_config(rc_pci_op_t *pci_op, u32 call_type)
 {
 	struct pci_dev *pdev = (struct pci_dev *)NULL;
-	rc_uint8_t tmp = 0x00;
-	rc_uint16_t tmp16 = 0;
+	u8 tmp = 0x00;
+	u16 tmp16 = 0;
 
 	if (pci_op && (pci_op->adapter < MAX_HBA) &&
 	    (pci_op->adapter < rc_state.num_hba) && rc_dev[pci_op->adapter] &&
@@ -513,7 +480,7 @@ void rc_msg_pci_config(rc_pci_op_t *pci_op, rc_uint32_t call_type)
 				pdev, pci_op->offset, &(pci_op->val));
 			break;
 		case RC_PCI_WRITE_CONFIG_BYTE:
-			tmp = (rc_uint8_t)(pci_op->val);
+			tmp = (u8)(pci_op->val);
 			pci_op->status = pci_write_config_byte(
 				pdev, pci_op->offset, tmp);
 			break;
@@ -804,8 +771,8 @@ void rc_receive_msg(void)
 				break;
 			}
 			/*(SWDEV-274844) 9.3.0.261_RHEL | Soft lockup |
-       * Getting soft lockup issue after every boot
-       * when system booted with RAID drivers*/
+			 * Getting soft lockup issue after every boot
+			 * when system booted with RAID drivers*/
 			if ((!(state->state & INIT_DONE)) ||
 			    (0 == state->osic_locked)) {
 				usleep_range(delay, delay);
@@ -1016,8 +983,8 @@ int rc_msg_init(rc_softstate_t *state)
 	rc_adapter_t *adapter;
 
 	/*
-   * find the initialization struct and fill in our function pointer
-   */
+	 * find the initialization struct and fill in our function pointer
+	 */
 	if (rc_setup_communications() == 0) {
 		rc_printk(RC_ERROR,
 			  "rc_msg_init: could not find init structure\n");
@@ -1027,13 +994,13 @@ int rc_msg_init(rc_softstate_t *state)
 	rc_send_test();
 
 	/*
-   * setup lock and counter for processing pending interrupts
-   */
+	 * setup lock and counter for processing pending interrupts
+	 */
 	atomic_set(&state->intr_pending, 0);
 
 	/*
-   * setup tasklet for srb q processing;
-   */
+	 * setup tasklet for srb q processing;
+	 */
 
 	state->srb_q.head = (rc_srb_t *)0;
 	state->srb_q.tail = (rc_srb_t *)0;
@@ -1042,8 +1009,8 @@ int rc_msg_init(rc_softstate_t *state)
 	INIT_DELAYED_WORK(&state->resume_work, (void *)rc_msg_resume_work);
 
 	/*
-   * setup tasklet for srb done processing;
-   */
+	 * setup tasklet for srb done processing;
+	 */
 	state->srb_done.head = (rc_srb_t *)0;
 	state->srb_done.tail = (rc_srb_t *)0;
 	spin_lock_init(&state->srb_done.lock);
@@ -1063,8 +1030,8 @@ int rc_msg_init(rc_softstate_t *state)
 	rc_event_init();
 
 	/*
-   *  send a  get_info msg to get setup info
-   */
+	 *  send a  get_info msg to get setup info
+	 */
 	memset(&args, 0, sizeof(rc_send_arg_t));
 	args.call_type = RC_CTS_GET_INFO;
 	args.u.get_info.controller_count = state->num_hba;
@@ -1171,8 +1138,8 @@ int rc_msg_init(rc_softstate_t *state)
 		(args.u.get_info.timer_interval + period - 1) / period;
 
 	/*
-   * now go allocate the private memory for each controller
-   */
+	 * now go allocate the private memory for each controller
+	 */
 	size = state->memsize_per_controller;
 	for (i = 0; i < state->num_hba; i++) {
 		void *addr;
@@ -1208,8 +1175,8 @@ int rc_msg_init(rc_softstate_t *state)
 	}
 
 	/*
-   * now we can initialize each controller
-   */
+	 * now we can initialize each controller
+	 */
 	for (i = 0; i < state->num_hba; i++) {
 		adapter = rc_dev[i];
 
@@ -1227,10 +1194,9 @@ int rc_msg_init(rc_softstate_t *state)
 		args.u.init_controller.orig_device_id =
 			adapter->hardware.orig_device_id;
 		args.u.init_controller.pci_location =
-			(rc_uint32_t)((((adapter->hardware.pci_func & 0xFF)
-					<< 8) |
-				       (adapter->hardware.pci_slot & 0xFF))
-				      << 8) |
+			(u32)((((adapter->hardware.pci_func & 0xFF) << 8) |
+			       (adapter->hardware.pci_slot & 0xFF))
+			      << 8) |
 			(adapter->hardware.pci_bus & 0xFF);
 		args.u.init_controller.bar_memory[adapter->version->which_bar] =
 			adapter->hardware.vaddr;
@@ -1293,8 +1259,8 @@ int rc_msg_init(rc_softstate_t *state)
 		  state->cache_memory_size, state->cache_memory);
 
 	/*
-   * do the final init for the OSIC
-   */
+	 * do the final init for the OSIC
+	 */
 	state->state |= USE_OSIC;
 
 	args.call_type = RC_CTS_FINAL_INIT;
@@ -1336,8 +1302,8 @@ int rc_msg_init(rc_softstate_t *state)
 	}
 
 	/*
-   * intialize the periodic timer for the OSIC
-   */
+	 * intialize the periodic timer for the OSIC
+	 */
 	timer_setup(&state->timer, rc_msg_timer, 0);
 	mod_timer(&state->timer, jiffies + state->timer_interval);
 	state->state |= ENABLE_TIMER;
@@ -1353,15 +1319,15 @@ int rc_msg_init(rc_softstate_t *state)
 	register_sysrq_key('d', &rc_skey_ops_dump);
 
 	/*
-   * Inventory what devices are connected.
-   * The flag means only build the device table, but don't send
-   * anything to the upper scsi layer.
-   */
-	rc_event(RC_CTR_EVENT_CONFIG_CHANGE_DETECTED, (rc_uint8_t)0,
+	 * Inventory what devices are connected.
+	 * The flag means only build the device table, but don't send
+	 * anything to the upper scsi layer.
+	 */
+	rc_event(RC_CTR_EVENT_CONFIG_CHANGE_DETECTED, (u8)0,
 		 RC_SRB_LOCAL_UPDATE_ONLY);
 	/*
-   * OK.  we're ready to accept IO for the OSIC
-   */
+	 * OK.  we're ready to accept IO for the OSIC
+	 */
 	return (0);
 }
 
@@ -1376,8 +1342,8 @@ void rc_msg_timer(struct timer_list *t)
 		return;
 
 	/*
-   * set up timeout
-   */
+	 * set up timeout
+	 */
 	timer_setup(&state->timer, rc_msg_timer, 0);
 	mod_timer(&state->timer, jiffies + state->timer_interval);
 
@@ -1466,9 +1432,9 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	size = sizeof(rc_srb_t) + sg_list_size + state->memsize_per_srb;
 
 	/* Safety check so we don't walk over memory
-   * we are going to fail IO here?
-   * TODO: maybe this should be a retry?
-   */
+	 * we are going to fail IO here?
+	 * TODO: maybe this should be a retry?
+	 */
 	if (scsi_sg_count(scp) > RC_SG_MAX_ELEMENTS) {
 		rc_printk(RC_ERROR,
 			  "rc_msg_send_srb:  scatter-gather list too large "
@@ -1480,9 +1446,9 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	}
 
 	/*
-   * Use GFP_ATOMIC instead of GP_KERNEL because we get called from the srb
-   * tasklet
-   */
+	 * Use GFP_ATOMIC instead of GP_KERNEL because we get called from the srb
+	 * tasklet
+	 */
 	if ((srb = kmalloc(size, GFP_ATOMIC)) == 0) {
 		if ((srb = kmalloc(size << 1, GFP_ATOMIC)) == 0) {
 			rc_printk(
@@ -1527,8 +1493,8 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	srb->seq_num = rc_srb_seq_num++;
 
 	/* the scsi_cmnd pointer points at our srb, at least until the command is
-   * aborted
-   */
+	 * aborted
+	 */
 	rc_scsi_pointer(scp)->srb = srb;
 
 	rc_msg_build_sg(srb);
@@ -1538,11 +1504,11 @@ int rc_msg_send_srb(struct scsi_cmnd *scp)
 	// rc_dump_scp(scp);
 
 	/*
-   * Add the srb to the tail of the queue, schedule the q tasklet, and return.
-   * Sending srb's through the OSIC can take a long time. We don't want other
-   * CPU's spinning on the OSIC lock and just wasting cycles.  So we queue
-   * the srb's and just have one tasklet entering the OSIC.
-   */
+	 * Add the srb to the tail of the queue, schedule the q tasklet, and return.
+	 * Sending srb's through the OSIC can take a long time. We don't want other
+	 * CPU's spinning on the OSIC lock and just wasting cycles.  So we queue
+	 * the srb's and just have one tasklet entering the OSIC.
+	 */
 
 	// STATS
 
@@ -1620,8 +1586,8 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	spin_unlock(&state->osic_lock);
 
 	/*
-   * expected state is queued == 1
-   */
+	 * expected state is queued == 1
+	 */
 
 	if (queued) {
 		// rc_printk(RC_DEBUG2, "rc_msg_process_srb: seq_num %d Queued\n",
@@ -1629,9 +1595,9 @@ void rc_msg_process_srb(rc_srb_t *srb)
 		return;
 	}
 	/*
-   * be carefull about using srb as it may already have been freed
-   * if the srb wasn't queued, we can still use srb.
-   */
+	 * be carefull about using srb as it may already have been freed
+	 * if the srb wasn't queued, we can still use srb.
+	 */
 
 	if (srb->seq_num == -1) {
 		rc_printk(RC_WARN,
@@ -1641,8 +1607,8 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	}
 
 	/*
-   * unexpected status PENDING
-   */
+	 * unexpected status PENDING
+	 */
 	if (srb->status == RC_SRB_STATUS_PENDING) {
 		rc_printk(RC_WARN,
 			  "rc_msg_process_srb: seq_num %d STATUS_PENDING\n",
@@ -1661,8 +1627,8 @@ void rc_msg_process_srb(rc_srb_t *srb)
 	}
 
 	/*
-   * just queue up the srb and let the tasklet handle the completion
-   */
+	 * just queue up the srb and let the tasklet handle the completion
+	 */
 	rc_msg_srb_done(srb);
 	return;
 }
@@ -1692,23 +1658,23 @@ void rc_msg_srb_q_tasklet(unsigned long arg)
 	sp = &state->stats;
 
 	/*
-   * If our card shares interrupts with another card,
-   * we may get scheduled because of an interrupt on that card.
-   * If the OSIC isn't ready to process interrupts yet,
-   * just defer running the tasklet
-   */
+	 * If our card shares interrupts with another card,
+	 * we may get scheduled because of an interrupt on that card.
+	 * If the OSIC isn't ready to process interrupts yet,
+	 * just defer running the tasklet
+	 */
 	if ((state->state & PROCESS_INTR) == 0) {
 		tasklet_schedule(&state->srb_q.tasklet);
 		return;
 	}
 
 	/*
-   * Keep checking for more work as long as we did anything
-   */
+	 * Keep checking for more work as long as we did anything
+	 */
 	do {
 		/*
-     * Process any pending interrupts
-     */
+		 * Process any pending interrupts
+		 */
 
 		progress = 0;
 		stat_last_pending = 0;
@@ -1728,14 +1694,14 @@ void rc_msg_srb_q_tasklet(unsigned long arg)
 		}
 
 		/*
-     * process all pending MORBs
-     */
+		 * process all pending MORBs
+		 */
 		spin_lock_irqsave(&state->mop_done.lock, irql);
 
 		while (state->mop_done.head) {
 			/*
-       * take an morb off the list
-       */
+			 * take an morb off the list
+			 */
 			mop = state->mop_done.head;
 			state->mop_done.head = mop->next;
 			mop->next = (rc_mem_op_t *)0;
@@ -1757,15 +1723,15 @@ void rc_msg_srb_q_tasklet(unsigned long arg)
 		spin_unlock_irqrestore(&state->mop_done.lock, irql);
 
 		/*
-     * process all pending SRBs
-     */
+		 * process all pending SRBs
+		 */
 		spin_lock_irqsave(&state->srb_q.lock, irql);
 
 		stat_nsrbs = 0;
 		while (state->srb_q.head) {
 			/*
-       * take an srb off the list
-       */
+			 * take an srb off the list
+			 */
 			srb = state->srb_q.head;
 			state->srb_q.head = srb->next;
 			srb->next = (rc_srb_t *)0;
@@ -1781,12 +1747,12 @@ void rc_msg_srb_q_tasklet(unsigned long arg)
 		}
 		// STATS
 		/*
-     * compute:
-     *     max number of srbs sent to the core at once
-     *    max interrupts that came in while in the core
-     *    total interrupts that came in while in the core
-     *    max time an interrupt waited for the core
-     */
+		 * compute:
+		 *    max number of srbs sent to the core at once
+		 *    max interrupts that came in while in the core
+		 *    total interrupts that came in while in the core
+		 *    max time an interrupt waited for the core
+		 */
 		if (sp->max_srbs_sent < stat_nsrbs)
 			sp->max_srbs_sent = stat_nsrbs;
 		if (sp->max_intr_waiting < stat_last_pending) {
@@ -1820,8 +1786,8 @@ void rc_msg_srb_done_tasklet(unsigned long arg)
 
 	while (state->srb_done.head) {
 		/*
-     * take an srb off the list
-     */
+		 * take an srb off the list
+		 */
 		srb = state->srb_done.head;
 		state->srb_done.head = srb->next;
 		srb->next = (rc_srb_t *)0;
@@ -1847,18 +1813,18 @@ void rc_msg_srb_done(rc_srb_t *srb)
 	//           srb->seq_num);
 
 	/*
-   * OSIC lock is already held entering this function
-   */
+	 * OSIC lock is already held entering this function
+	 */
 	// STATS
 	atomic_dec(&state->stats.srb_pending);
 
 	rc_msg_srb_complete(srb);
 
 	/*
-   * add to tail of srb queue
-   */
+	 * add to tail of srb queue
+	 */
 	/*
-          spin_lock_irqsave(&state->srb_done.lock, irql);
+	   spin_lock_irqsave(&state->srb_done.lock, irql);
 
           if (state->srb_done.head == (rc_srb_t *)0) {
                   state->srb_done.head = srb;
@@ -1935,8 +1901,8 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	}
 
 	/*
-   * no device
-   */
+	 * no device
+	 */
 	if (srb->status == RC_SRB_STATUS_NO_DEVICE ||
 	    srb->status == RC_SRB_STATUS_INVALID_LUN ||
 	    srb->status == RC_SRB_STATUS_INVALID_TARGET_ID ||
@@ -1953,14 +1919,14 @@ void rc_msg_srb_complete(struct rc_srb_s *srb)
 	}
 
 	/*
-   * Something went wrong.  May need to check specific error codes
-   */
+	 * Something went wrong.  May need to check specific error codes
+	 */
 	rc_printk(RC_DEBUG2, "%s: seq_num %d ERROR 0x%x\n", __FUNCTION__,
 		  srb->seq_num, srb->status);
 	/*
-   * dump the command that failed
-   * Note: Will only see if debug level >= 8.
-   */
+	 * dump the command that failed
+	 * Note: Will only see if debug level >= 8.
+	 */
 	rc_dump_scp(scp);
 
 	scp->result = DID_OK << 16 | COMMAND_COMPLETE << 8 | CHECK_CONDITION;
@@ -2010,9 +1976,9 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	size = sizeof(rc_srb_t) + sg_list_size + state->memsize_per_srb;
 
 	/*
-   * Use GFP_ATOMIC instead of GP_KERNEL because we get called from the srb
-   * tasklet
-   */
+	 * Use GFP_ATOMIC instead of GP_KERNEL because we get called from the srb
+	 * tasklet
+	 */
 	if ((srb = kmalloc(size, GFP_ATOMIC)) == 0) {
 		rc_printk(RC_WARN,
 			  "rc_msg_send_srb_function: could not alloc %d "
@@ -2031,14 +1997,14 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	rc_srb_seq_num++;
 
 	/*
-   * on a uniprocessor kernel, the spin_locks disappear and we have no
-   * lock to prevent reentering the OSIC.
-   * we can't allow rc_msg_timer to execute while we're in the middle of
-   * this call to the OSIC, as it also enters the OSIC.
-   * So, disable the bottom-half handlers, which will prevent the msg_timer
-   * from running.  After the bh handlers are re-enabled, they'll get
-   * executed later
-   */
+	 * on a uniprocessor kernel, the spin_locks disappear and we have no
+	 * lock to prevent reentering the OSIC.
+	 * we can't allow rc_msg_timer to execute while we're in the middle of
+	 * this call to the OSIC, as it also enters the OSIC.
+	 * So, disable the bottom-half handlers, which will prevent the msg_timer
+	 * from running.  After the bh handlers are re-enabled, they'll get
+	 * executed later
+	 */
 	local_bh_disable();
 	spin_lock(&state->osic_lock);
 	check_lock(state);
@@ -2055,8 +2021,8 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	local_bh_enable();
 
 	/*
-   * expected state is queued == 1
-   */
+	 * expected state is queued == 1
+	 */
 
 	if (!queued) {
 		rc_printk(RC_WARN,
@@ -2067,8 +2033,8 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
 	}
 
 	/*
-   * wait for the srb_function to complete
-   */
+	 * wait for the srb_function to complete
+	 */
 	rc_printk(RC_DEBUG,
 		  "rc_msg_send_srb_function: waiting for completion\n");
 	down(&state->init_sema);
@@ -2082,7 +2048,7 @@ void rc_msg_send_srb_function(rc_softstate_t *state, int function)
  * We've already checked that this is the case.
  */
 
-void __inline__ rc_msg_build_sg_virt(rc_srb_t *srb)
+void inline rc_msg_build_sg_virt(rc_srb_t *srb)
 {
 	int i;
 	struct scatterlist *sg;
@@ -2107,7 +2073,7 @@ void __inline__ rc_msg_build_sg_virt(rc_srb_t *srb)
 /*
  * build a scatter/gater list of physical address to send to the OSIC.
  */
-void __inline__ rc_msg_build_sg_phys(rc_srb_t *srb)
+void inline rc_msg_build_sg_phys(rc_srb_t *srb)
 {
 	int i;
 	struct scatterlist *sg;
@@ -2154,8 +2120,8 @@ void rc_msg_build_sg(rc_srb_t *srb)
 	}
 
 	/*
-   * Run through all the elements and see if they are all in low memory
-   */
+	 * Run through all the elements and see if they are all in low memory
+	 */
 #ifdef CONFIG_HIGHMEM
 	sg = scsi_sglist(scp);
 	scsi_for_each_sg(scp, sg, scsi_sg_count(scp), i)
@@ -2183,13 +2149,12 @@ void rc_msg_map_phys_to_virt(struct map_memory_s *map)
 		rc_printk(RC_ERROR, "%s: WARNING adapter shutdown\n",
 			  __FUNCTION__);
 	} else if ((map->memory_id & MEM_TYPE) == RC_MEM_PADDR) {
-		map->address = (rc_uint64_t)(uintptr_t)phys_to_virt(
-			map->physical_address);
+		map->address = (uintptr_t)phys_to_virt(map->physical_address);
 	}
 }
 
-void rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t *dmaHandle,
-			  rc_uint32_t bytes, rc_adapter_t *adapter)
+void rc_add_dmaMemoryList(void *cpu_addr, dma_addr_t *dmaHandle, u32 bytes,
+			  rc_adapter_t *adapter)
 {
 	struct DmaMemoryNode *newNode;
 
@@ -2229,7 +2194,7 @@ void rc_msg_get_dma_memory(alloc_dma_address_t *dma_address)
 }
 
 void rc_msg_free_dma_memory(rc_adapter_t *adapter, void *cpu_addr,
-			    dma_addr_t dmaHandle, rc_uint32_t bytes)
+			    dma_addr_t dmaHandle, u32 bytes)
 {
 	dma_free_coherent(&adapter->pdev->dev, bytes, cpu_addr, dmaHandle);
 }
@@ -2279,15 +2244,15 @@ void rc_msg_map_mem(struct map_memory_s *map)
 	if ((map->memory_id & MEM_TYPE) == RC_MEM_PADDR) {
 		map->physical_address = map->address;
 	} else if ((map->memory_id & MEM_TYPE) == RC_MEM_VADDR) {
-		vaddr = (void *)(rc_uint_ptr_t)map->address;
+		vaddr = (void *)(uintptr_t)map->address;
 		len = (size_t)map->number_bytes;
 
 		private_start = adapter->private_mem.vaddr;
 		private_end = private_start + adapter->private_mem.size;
 
 		/*
-     * check to see if the request is in the device private memory region.
-     */
+		 * check to see if the request is in the device private memory region.
+		 */
 		if ((vaddr >= private_start) && (vaddr < private_end)) {
 			if (vaddr + len >= private_end) {
 				rc_printk(
@@ -2300,9 +2265,8 @@ void rc_msg_map_mem(struct map_memory_s *map)
 
 			offset = vaddr - private_start;
 			map->physical_address =
-				(rc_uint64_t)adapter->private_mem.dma_address +
-				offset;
-			map->number_bytes = (rc_uint64_t)len;
+				(u64)adapter->private_mem.dma_address + offset;
+			map->number_bytes = (u64)len;
 			type = "p";
 		} else {
 			if (((unsigned long)vaddr >= VMALLOC_START) &&
@@ -2326,11 +2290,11 @@ void rc_msg_map_mem(struct map_memory_s *map)
 					      map->physical_address)) {
 				map->number_bytes = 0;
 			} else {
-				map->number_bytes = (rc_uint64_t)len_mapped;
+				map->number_bytes = (u64)len_mapped;
 			}
 		}
 	} else if ((map->memory_id & MEM_TYPE) == RC_MEM_DMA) {
-		vaddr = (void *)(rc_uint_ptr_t)map->address;
+		vaddr = (void *)map->address;
 
 		map->physical_address = dma_map_single(&adapter->pdev->dev,
 						       vaddr, map->number_bytes,
@@ -2350,11 +2314,11 @@ out:
 	/*
           RC_PRINTK(RC_DEBUG3, "rc_msg_map_mem: addr[%s] 0x%x:%x paddr 0x%x:%x "
                     "number_bytes %d\n", type,
-                    (rc_uint32_t)(map->address >> 32),
-                    (rc_uint32_t)(map->address & 0xffffffff),
-                    (rc_uint32_t)(map->physical_address >> 32),
-                    (rc_uint32_t)(map->physical_address & 0xffffffff),
-                    (rc_uint32_t)map->number_bytes );
+                    (u32)(map->address >> 32),
+                    (u32)(map->address & 0xffffffff),
+                    (u32)(map->physical_address >> 32),
+                    (u32)(map->physical_address & 0xffffffff),
+                    (u32)map->number_bytes );
   */
 	return;
 }
@@ -2366,12 +2330,12 @@ void rc_msg_unmap_mem(struct unmap_memory_s *unmap)
 	int len;
 	dma_addr_t private_start; // Adapter private memory
 	dma_addr_t private_end;
-	rc_uint64_t paddr;
+	u64 paddr;
 	int seq_num;
 
 	adapter = (rc_adapter_t *)unmap->dev_handle;
 	paddr = unmap->physical_address;
-	len = (rc_uint32_t)unmap->number_bytes;
+	len = (u32)unmap->number_bytes;
 
 	if (unmap->srb)
 		seq_num = unmap->srb->seq_num;
@@ -2385,28 +2349,28 @@ void rc_msg_unmap_mem(struct unmap_memory_s *unmap)
 	RC_PRINTK(RC_DEBUG3,
 		  "rc_msg_unmap_mem: paddr 0x%x:%x number_bytes "
 		  "%d\n",
-		  (rc_uint32_t)(unmap->physical_address >> 32),
-		  (rc_uint32_t)(unmap->physical_address & 0xffffffff),
-		  (rc_uint32_t)unmap->number_bytes);
+		  (u32)(unmap->physical_address >> 32),
+		  (u32)(unmap->physical_address & 0xffffffff),
+		  (u32)unmap->number_bytes);
 
 	/*
-   * check to see if the request is in the device private memory region.
-   */
+	 * check to see if the request is in the device private memory region.
+	 */
 	if ((dma_addr >= private_start) && (dma_addr < private_end)) {
 		if (dma_addr + len >= private_end) {
 			rc_printk(RC_WARN,
 				  "rc_msg_unmap_mem: invalid address range: "
 				  "0x%llx len %d\n",
-				  (rc_uint64_t)dma_addr, len);
+				  (u64)dma_addr, len);
 			unmap->number_bytes = 0;
 			return;
 		}
-		unmap->number_bytes = (rc_uint64_t)len;
+		unmap->number_bytes = (u64)len;
 		return;
 	}
 
 	dma_unmap_page(&adapter->pdev->dev, dma_addr, len, DMA_BIDIRECTIONAL);
-	unmap->number_bytes = (rc_uint64_t)len;
+	unmap->number_bytes = (u64)len;
 	return;
 }
 
@@ -2425,8 +2389,8 @@ void rc_msg_timeout(int to)
 
 	state = &rc_state;
 	/*
-   * set up timeout
-   */
+	 * set up timeout
+	 */
 
 	timer_setup(&state->msg_timeout, rc_msg_timeout_done, 0);
 	mod_timer(&state->msg_timeout, jiffies + to);
@@ -2439,9 +2403,9 @@ void rc_msg_access_ok(rc_access_ok_t accessOk)
 		access_ok(accessOk.access_location, accessOk.access_size);
 }
 
-void rc_set_sense_data(char *sense, uint8_t sense_key, uint8_t sense_code,
-		       uint8_t add_sense_code, uint8_t incorrect_len,
-		       uint8_t bit_ptr, uint32_t field_ptr, uint32_t residue)
+void rc_set_sense_data(char *sense, u8 sense_key, u8 sense_code,
+		       u8 add_sense_code, u8 incorrect_len, u8 bit_ptr,
+		       u32 field_ptr, u32 residue)
 {
 	sense[0] = 0xF0; // Sense data Valid, err code 70h (current error)
 	sense[1] = 0; // Segment number, always zero

@@ -44,7 +44,7 @@ static int rccfg_io(struct sg_io_hdr *hdr)
 	int i = 0;
 	int err = 0;
 	unsigned long irql;
-	rc_uint32_t target;
+	u32 target;
 
 	mutex_lock(&ioctl_mutex);
 	state = &rc_state;
@@ -154,10 +154,10 @@ static int rccfg_io(struct sg_io_hdr *hdr)
 	down(&rccfg_wait);
 
 	/* copy the srb status back into the sg hdr status
-   * this is appear to all that the user space uses
-   * for error reporting, but it might need sense data
-   * at some point
-   */
+	 * this is appear to all that the user space uses
+	 * for error reporting, but it might need sense data
+	 * at some point
+	 */
 	hdr->status = srb->status;
 
 	if (copy_to_user(hdr->dxferp, data, hdr->dxfer_len)) {
@@ -240,9 +240,9 @@ static long rccfg_compat_ioctl(struct file *filp, unsigned int cmd,
 			break;
 
 		/*
-     * move all the fields over manually, specfically converting
-     * the 32 bit ptrs to native pointers
-     */
+		 * move all the fields over manually, specfically converting
+		 * the 32 bit ptrs to native pointers
+		 */
 		hdr_native.interface_id = hdr.interface_id;
 		hdr_native.dxfer_direction = hdr.dxfer_direction;
 		hdr_native.cmd_len = hdr.cmd_len;

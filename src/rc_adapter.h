@@ -29,6 +29,9 @@
 #ifndef _RC_ADAPTER_
 #define _RC_ADAPTER_
 
+#include <linux/irqreturn.h>
+#include <linux/types.h>
+
 struct rc_adapter_s;
 typedef irqreturn_t (*rc_isr_func_t)(int irq, void *arg, struct pt_regs *regs);
 typedef int (*rc_adapter_func_t)(struct rc_adapter_s *adapter);
@@ -59,8 +62,8 @@ typedef struct rc_hw_info {
 	unsigned long phys_addr; // 32 bit bus address
 	int mem_len; // len of memory map
 	int adapter_number;
-	uint16_t orig_vendor_id;
-	uint16_t orig_device_id;
+	u16 orig_vendor_id;
+	u16 orig_device_id;
 	unsigned char pci_config_space
 		[2 * PCI_CFG_SIZE]; // Allow for extended pci config space
 } rc_hw_info_t;
@@ -76,7 +79,7 @@ struct DmaMemoryNode {
 
 	void *cpu_addr;
 	dma_addr_t dmaHandle;
-	rc_uint32_t bytes;
+	u32 bytes;
 };
 
 typedef struct rc_adapter_s {
@@ -110,18 +113,18 @@ typedef struct rc_mop_queue_s {
 } rc_mop_queue_t;
 
 typedef struct rc_stats_s {
-	uint target_total[MAX_ARRAY];
+	u32 target_total[MAX_ARRAY];
 	atomic_t target_pending[MAX_ARRAY];
-	uint srb_total; // SRBs sent to the OSIC
+	u32 srb_total; // SRBs sent to the OSIC
 	atomic_t srb_pending; // SRBs sent to the OSIC
-	uint scb_total; // SCBs from scsi layer
+	u32 scb_total; // SCBs from scsi layer
 	atomic_t scb_pending; // SCBs from scsi layer
-	uint max_srbs_sent; // ...into the core at one time in
+	u32 max_srbs_sent; // ...into the core at one time in
 	// rc_msg_srb_q_tasklet
-	uint max_intr_waiting; // max interrupts that came in while sending
+	u32 max_intr_waiting; // max interrupts that came in while sending
 	// a batch of SRBs to the core
-	uint total_intr_waiting; // total
-	uint max_intr_delay; // max #cycles an interrupt waited for us
+	u32 total_intr_waiting; // total
+	u32 max_intr_delay; // max #cycles an interrupt waited for us
 	// to send SRBs to the core
 } rc_stats_t;
 
@@ -136,9 +139,9 @@ typedef struct rc_softstate {
 	int memsize_per_controller;
 	int memsize_per_srb;
 	int timer_interval; /* in clock ticks */
-	uint32_t virtual_memory_size;
+	u32 virtual_memory_size;
 	void *virtual_memory;
-	uint32_t cache_memory_size;
+	u32 cache_memory_size;
 	void *cache_memory;
 	struct semaphore init_sema;
 	struct timer_list timer;
@@ -157,7 +160,7 @@ typedef struct rc_softstate {
 
 	struct delayed_work resume_work;
 	int is_suspended;
-	uint adapter_is_suspended;
+	u32 adapter_is_suspended;
 
 	atomic_t intr_pending;
 	rc_stats_t stats;

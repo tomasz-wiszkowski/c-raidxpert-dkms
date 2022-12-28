@@ -22,21 +22,9 @@
 #ifndef RC_MSG_PLATFORM_H
 #define RC_MSG_PLATFORM_H
 
-#ifdef int
-#undef int
-#undef unsigned
-#define RC_STHEXT_REDO_STRICT_TYPES
-#endif //int
-
 #include <linux/stdarg.h>
+#include <linux/types.h>
 
-#ifdef RC_STHEXT_REDO_STRICT_TYPES
-#define int Cannot_USE_int_because_it_is_ambiguous
-#define unsigned Cannot_USE_unsigned_because_it_is_ambiguous
-#undef RC_STHEXT_REDO_STRICT_TYPES
-#endif //RC_STHEXT_REDO_STRICT_TYPES
-
-#include "rc_types_platform.h"
 #include "rc_srb.h"
 
 #define RC_COOKIE_VALUE_LO 0x2A1DC02E
@@ -48,8 +36,7 @@
 	(RC_COOKIE_VALUE_LO + RC_COOKIE_VALUE_HI + RC_INTERFACE_VERSION)
 
 typedef void(rc_function_t)(void);
-typedef void(rc_function_cpuid_t)(rc_uint32_t, rc_uint32_t *, rc_uint32_t *,
-				  rc_uint32_t *, rc_uint32_t *);
+typedef void(rc_function_cpuid_t)(u32, u32 *, u32 *, u32 *, u32 *);
 
 #define RC_NUM_TUNABLE_PARAMS 32
 typedef enum {
@@ -121,7 +108,7 @@ typedef enum {
  */
 typedef union rc_mem_op_id_s {
 	void *addr;
-	rc_uint64_t u64;
+	u64 u64;
 } rc_mem_op_id_t;
 
 /*
@@ -136,13 +123,13 @@ typedef union rc_mem_op_id_s {
 typedef struct rc_addr_list_s {
 	void *reserved_priv1; // Reserved for external OSIC use only
 	void *reserved_priv2; // Reserved for external OSIC use only
-	rc_uint8_t mem_elem_count; // elemnt count for this list
-	rc_uint8_t reserved_priv3; // Reserved for external OSIC use only
-	rc_uint16_t mem_id; // Memory space indentifier
+	u8 mem_elem_count; // elemnt count for this list
+	u8 reserved_priv3; // Reserved for external OSIC use only
+	u16 mem_id; // Memory space indentifier
 	struct rc_addr_list_s *next; // If more than SINGLE_IO_ADDRESS_COUNT
 	// elements, more lists.
 	rc_sg_elem_t sg_list[RC_SINGLE_IO_ADDRESS_COUNT];
-	rc_uint32_t RequirePhysical; // Notification for Hibernation /
+	u32 RequirePhysical; // Notification for Hibernation /
 	// Crashdump and for future
 	// ... reference to what actually
 	// needs physical memory
@@ -150,8 +137,8 @@ typedef struct rc_addr_list_s {
 
 typedef struct rc_mem_list_s {
 	rc_addr_list_t *addr;
-	rc_uint32_t start_element;
-	rc_uint32_t start_offset;
+	u32 start_element;
+	u32 start_offset;
 } rc_mem_list_t;
 
 /*
@@ -159,82 +146,82 @@ typedef struct rc_mem_list_s {
  */
 typedef struct rc_mem_list_op_s {
 	struct rc_addr_list_s *dst_addr_list; // addr list for destination XOR DMA
-	rc_uint32_t dst_element; // starting dest element DMA
-	rc_uint32_t dst_offset; // starting dest offset XOR DMA CMP
+	u32 dst_element; // starting dest element DMA
+	u32 dst_offset; // starting dest offset XOR DMA CMP
 	union {
 		struct rc_addr_list_s *
 			*addr_list_array; // Array of address lists for
 		// source(s) XOR CMP
 		struct rc_addr_list_s *addr_list; // source address list DMA
 	} src;
-	rc_uint32_t src_element; // starting src element DMA
-	rc_uint32_t src_offset; // startint src offset DMA
-	rc_uint32_t array_count; // number of sources in array XOR CMP
-	rc_uint32_t sector_count; // Number of sectors XOR DMA CMP
-	rc_uint32_t flags; // engine flags XOR
+	u32 src_element; // starting src element DMA
+	u32 src_offset; // startint src offset DMA
+	u32 array_count; // number of sources in array XOR CMP
+	u32 sector_count; // Number of sectors XOR DMA CMP
+	u32 flags; // engine flags XOR
 } rc_mem_list_op_t;
 
- // Ignore destination as part of XOR
- // operation
+// Ignore destination as part of XOR
+// operation
 #define RC_MEMOP_FLAG_XOR_MOVE_FIRST 0x01
 // Return success only if final
 // result is zero
 #define RC_MEMOP_FLAG_XOR_CHECK_ZERO 0x02
 
 typedef struct rc_access_ok_s {
-	rc_uint64_t write;
-	rc_uint_ptr_t access_location;
-	rc_uint64_t access_size;
-	rc_uint64_t returnStatus;
+	u64 write;
+	void *access_location;
+	u64 access_size;
+	u64 returnStatus;
 
 } rc_access_ok_t;
 
 typedef struct rc_usr_mem_s {
-	rc_uint64_t dstLocation;
-	rc_uint64_t srcLocation;
-	rc_uint64_t size;
+	u64 dstLocation;
+	u64 srcLocation;
+	u64 size;
 } rc_usr_mem_t;
 
 typedef struct rc_mem_op_s {
 	struct rc_mem_op_s *next;
 	rc_mem_op_id_t id; // opaque
 	rc_mem_opcode_t opcode;
-	rc_uint32_t status; // immediate status returned
+	u32 status; // immediate status returned
 	union {
 		rc_mem_list_op_t *list;
 		struct {
-			rc_uint64_t dst;
-			rc_uint64_t src;
-			rc_uint32_t dst_id;
-			rc_uint32_t src_id;
-			rc_uint32_t byte_count;
+			u64 dst;
+			u64 src;
+			u32 dst_id;
+			u32 src_id;
+			u32 byte_count;
 		} cp;
 		struct {
-			rc_uint64_t dst;
-			rc_uint32_t dst_id;
-			rc_uint32_t byte_count;
+			u64 dst;
+			u32 dst_id;
+			u32 byte_count;
 		} clr;
 	} mem;
 } rc_mem_op_t;
 
 typedef struct rc_mem_op_resp_s {
 	rc_mem_op_id_t id; // opaque
-	rc_uint32_t status;
+	u32 status;
 } rc_mem_op_resp_t;
 
 typedef struct rc_pci_op_s {
-	rc_uint32_t adapter;
-	rc_uint32_t offset;
-	rc_uint32_t val;
-	rc_uint32_t status;
+	u32 adapter;
+	u32 offset;
+	u32 val;
+	u32 status;
 } rc_pci_op_t;
 
 typedef struct rc_pci_io_s {
-	rc_uint32_t adapter;
-	rc_uint32_t offset;
-	rc_uint32_t width;
-	rc_uint32_t val;
-	rc_uint32_t status;
+	u32 adapter;
+	u32 offset;
+	u32 width;
+	u32 val;
+	u32 status;
 } rc_pci_io_t;
 
 /*
@@ -243,9 +230,9 @@ typedef struct rc_pci_io_s {
 typedef struct rc_morb_s {
 	rc_mem_op_id_t id; // opaque
 	rc_mem_opcode_t opcode;
-	rc_uint32_t status; // immediate status returned
-	rc_uint32_t num_arrays;
-	rc_uint32_t byte_count;
+	u32 status; // immediate status returned
+	u32 num_arrays;
+	u32 byte_count;
 	rc_sg_list_t *sg_list[16]; // start of lists, variable size
 } rc_morb_t;
 
@@ -278,25 +265,25 @@ typedef struct rc_init_controller_s {
 	void *controller_memory; // cpu memory per controller
 	void *controller_handle;
 	void *pci_config_space;
-	rc_uint32_t pci_config_space_length;
+	u32 pci_config_space_length;
 	void *bar_memory[6]; // Virtually mapped memory space
-	rc_uint32_t bar_length[6]; // Length of each space
-	rc_uint16_t bar_port[6]; // Port bars
-	rc_uint16_t controller_memory_id; // memory type
-	rc_uint16_t reserved;
-	rc_uint16_t orig_vendor_id; // Original VendorID before trapping
-	rc_uint16_t orig_device_id; // Original DeviceID before trapping
-	rc_uint32_t pci_location; // PCI bus Bus/Slot/Function information
+	u32 bar_length[6]; // Length of each space
+	u16 bar_port[6]; // Port bars
+	u16 controller_memory_id; // memory type
+	u16 reserved;
+	u16 orig_vendor_id; // Original VendorID before trapping
+	u16 orig_device_id; // Original DeviceID before trapping
+	u32 pci_location; // PCI bus Bus/Slot/Function information
 
 	//
 	//    Input from STH
 	//
-	rc_uint32_t max_split_virtual_memory_size_needed;
-	rc_uint32_t max_split_cache_memory_size_needed;
+	u32 max_split_virtual_memory_size_needed;
+	u32 max_split_cache_memory_size_needed;
 #define virtual_memory_size_needed min_virtual_memory_size_needed
 #define cache_memory_size_needed min_cache_memory_size_needed
-	rc_uint32_t min_virtual_memory_size_needed;
-	rc_uint32_t min_cache_memory_size_needed;
+	u32 min_virtual_memory_size_needed;
+	u32 min_cache_memory_size_needed;
 
 	// The following two fields are said to be required by the software
 	// which is bizarre to say the least.
@@ -305,8 +292,8 @@ typedef struct rc_init_controller_s {
 	// this here.
 	// These two calls will log an unsupported function call and won't
 	// perform any actuall register reads/writes.
-	rc_uint32_t (*regread_unsupported)(void *, rc_uint32_t);
-	void (*regwrite_unsupported)(void *, rc_uint32_t, rc_uint32_t);
+	u32 (*regread_unsupported)(void *, u32);
+	void (*regwrite_unsupported)(void *, u32, u32);
 
 	void *context;
 } rc_init_controller_t;
@@ -317,52 +304,50 @@ typedef struct rc_final_init_s {
 	//
 	void *virtual_memory;
 	void *cache_memory;
-	rc_uint32_t size_of_virtual_memory_allocated;
-	rc_uint32_t size_of_cache_memory_allocated;
-	rc_uint16_t virtual_memory_id; // memory type
-	rc_uint16_t cache_memory_id; // memory type
-	rc_uint32_t timer_interval;
+	u32 size_of_virtual_memory_allocated;
+	u32 size_of_cache_memory_allocated;
+	u16 virtual_memory_id; // memory type
+	u16 cache_memory_id; // memory type
+	u32 timer_interval;
 } rc_final_init_t;
 
 typedef struct rc_scsi_info_s {
-	rc_uint32_t bus;
-	rc_uint32_t target;
-	rc_uint32_t lun;
-	rc_uint32_t value;
+	u32 bus;
+	u32 target;
+	u32 lun;
+	u32 value;
 } rc_scsi_info_t;
 
 //
 //    Structure which contains the send argument information
 //
 typedef struct rc_send_arg_s {
-	rc_uint32_t call_type;
+	u32 call_type;
 	union {
 		struct {
 			//
 			//    Sent to STH from driver
 			//
-			rc_uint32_t max_total_memory;
-			rc_uint32_t max_cache_memory;
-			rc_uint32_t max_virtual_memory;
-			rc_uint32_t controller_count;
-			rc_uint32_t
-				max_sg_map_elements; // maximun number of sg elements
+			u32 max_total_memory;
+			u32 max_cache_memory;
+			u32 max_virtual_memory;
+			u32 controller_count;
+			u32 max_sg_map_elements; // maximun number of sg elements
 			// allocated on each srb by the sender
-			rc_uint32_t
-				max_print_severity; // Sets the max severity for getting
+			u32 max_print_severity; // Sets the max severity for getting
 			// back print messages
 
 			//
 			//    Input from the STH
 			//
-			rc_uint32_t memory_size_per_controller;
-			rc_uint32_t memory_size_per_srb;
-			rc_uint32_t timer_interval;
-			rc_uint32_t random_seed;
-			rc_uint64_t max_lba; // in blocks, we use LBA
-			rc_uint32_t parameter_mask;
-			rc_uint32_t tunable_parameters[RC_NUM_TUNABLE_PARAMS];
-			rc_uint32_t support4kNativeDisks;
+			u32 memory_size_per_controller;
+			u32 memory_size_per_srb;
+			u32 timer_interval;
+			u32 random_seed;
+			u64 max_lba; // in blocks, we use LBA
+			u32 parameter_mask;
+			u32 tunable_parameters[RC_NUM_TUNABLE_PARAMS];
+			u32 support4kNativeDisks;
 		} get_info __attribute__((aligned(8)));
 		struct rc_init_controller_s init_controller;
 		struct rc_final_init_s final_init __attribute__((aligned(8)));
@@ -374,14 +359,14 @@ typedef struct rc_send_arg_s {
 		} interrupt_call __attribute__((aligned(8)));
 		struct {
 			struct rc_srb_s *srb;
-			rc_uint32_t queued; // 1 if queued
+			u32 queued; // 1 if queued
 		} send_srb __attribute__((aligned(8)));
 		struct {
-			rc_uint32_t param;
-			rc_uint32_t value;
+			u32 param;
+			u32 value;
 		} change_param __attribute__((aligned(8)));
 		rc_mem_op_resp_t mem_op_resp __attribute__((aligned(8)));
-		rc_uint32_t max_print_severity __attribute__((aligned(8)));
+		u32 max_print_severity __attribute__((aligned(8)));
 		void *adapterMemory __attribute__((aligned(8)));
 		rc_scsi_info_t rc_scsi_info __attribute__((aligned(8)));
 	} u;
@@ -422,43 +407,43 @@ typedef struct rc_send_arg_s {
 #define RC_CTR_EVENT_CONFIG_ARRAY_OFFLINE 102
 #define RC_CTR_EVENT_CONFIG_DISK_OFFLINE 103
 
- // After printing, system should be crashed
+// After printing, system should be crashed
 #define RC_CTR_PRINTF_SEV_PANIC 0
- // Errors that must be printed
+// Errors that must be printed
 #define RC_CTR_PRINTF_SEV_ALERT 1
- // Errors that must be printed
+// Errors that must be printed
 #define RC_CTR_PRINTF_SEV_CRITICAL 2
- // Warnings that should be printed
+// Warnings that should be printed
 #define RC_CTR_PRINTF_SEV_ERROR 3
- // Warnings that should be printed
+// Warnings that should be printed
 #define RC_CTR_PRINTF_SEV_WARNING 4
- // Warnings that should be printed
+// Warnings that should be printed
 #define RC_CTR_PRINTF_SEV_NOTICE 5
 // Informational messages
 #define RC_CTR_PRINTF_SEV_INFO 6
 // Uncatagorized output, but by may be more than debug
 #define RC_CTR_PRINTF_SEV_UNKNOWN 7
- // Debug only starting point: Any severity at the level
+// Debug only starting point: Any severity at the level
 #define RC_CTR_PRINTF_SEV_DEBUG_MIN 8
 typedef struct alloc_dma_address_s {
-	rc_uint32_t bytes;
+	u32 bytes;
 	void *cpu_addr;
 	void *dev_handle;
-	rc_uint64_t dmaHandle;
+	u64 dmaHandle;
 } alloc_dma_address_t;
 
 //
 //    Structure which contains the receive argument information
 //
 typedef struct alloc_dma_map_s {
-	rc_uint64_t physical_address; // RETURNS: Physical address of translation
-	rc_uint64_t address_handle; // RETURNS: Handle associated with address
-	rc_uint64_t number_bytes; // IN/OUT: Number of contiguous bytes
+	u64 physical_address; // RETURNS: Physical address of translation
+	u64 address_handle; // RETURNS: Handle associated with address
+	u64 number_bytes; // IN/OUT: Number of contiguous bytes
 	// translation is valid for
 	void *dev_handle; // device structure pointer
 	rc_srb_t *srb;
-	rc_uint64_t address;
-	rc_uint16_t memory_id; // Memory ID for what is being mapped.
+	u64 address;
+	u16 memory_id; // Memory ID for what is being mapped.
 } alloc_dma_map_t, map_memory_t;
 
 #define map_memory_s alloc_dma_map_s
@@ -467,10 +452,10 @@ typedef struct alloc_dma_map_s {
 typedef struct free_dma_map_s {
 	void *dev_handle; // device structure pointer
 	rc_srb_t *srb;
-	rc_uint64_t physical_address; // phys addr to unmap
-	rc_uint64_t address_handle; // Handle for address map
-	rc_uint64_t number_bytes; // number of bytes to unmap
-	rc_uint16_t memory_id; // Memory ID for what is being mapped.
+	u64 physical_address; // phys addr to unmap
+	u64 address_handle; // Handle for address map
+	u64 number_bytes; // number of bytes to unmap
+	u16 memory_id; // Memory ID for what is being mapped.
 } free_dma_map_t, unmap_memory_t;
 
 struct rc_receive_arg_s;
@@ -478,24 +463,24 @@ struct rc_receive_arg_s;
 typedef void(rc_acpi_callback_t)(struct rc_receive_arg_s *);
 
 typedef struct rc_receive_arg_s {
-	rc_uint32_t call_type;
-	rc_uint32_t padding;
+	u32 call_type;
+	u32 padding;
 	union {
 		struct {
 			void *va_l;
 			const char *format;
-			rc_uint32_t severity;
+			u32 severity;
 		} print_va;
 		struct {
 			struct rc_srb_s *srb;
 		} srb_done;
 		struct {
 			char *file_name;
-			rc_uint32_t line_number;
+			u32 line_number;
 		} assertion_failure;
 		struct {
-			rc_uint32_t rc_notification_type;
-			rc_uint8_t rc_bus_changed;
+			u32 rc_notification_type;
+			u8 rc_bus_changed;
 		} event;
 		map_memory_t map_memory;
 		unmap_memory_t unmap_memory;
@@ -505,17 +490,17 @@ typedef struct rc_receive_arg_s {
 		rc_pci_op_t pci_op;
 		rc_pci_io_t pci_io;
 		struct {
-			rc_uint32_t microseconds;
+			u32 microseconds;
 		} wait_microseconds;
 		struct {
 			char *method; // ACPI method name -- based off _SB.PCI0.SATA if not "^\"
 			rc_acpi_callback_t *
 				callback; // function to call when ACPI call complete -- func(*context, *args);
 			void *inPtr; // pointer to method input parameters
-			rc_uint32_t inSize; // size of input parameters
+			u32 inSize; // size of input parameters
 			void *outPtr; // pointer to method or value output parameters
-			rc_uint32_t outSize; // size of output parameters
-			rc_uint32_t status; // status of ACPI call
+			u32 outSize; // size of output parameters
+			u32 status; // status of ACPI call
 			void *context; // context for callback function
 		} acpi;
 		alloc_dma_address_t get_dma_memory;
@@ -526,10 +511,10 @@ typedef struct rc_receive_arg_s {
 //    Base structure that allows communication with hardware interface
 //
 typedef struct rc_interface_s {
-	rc_uint32_t cookie_lo;
-	rc_uint32_t cookie_hi;
-	rc_uint32_t version;
-	rc_uint32_t checksum;
+	u32 cookie_lo;
+	u32 cookie_hi;
+	u32 version;
+	u32 checksum;
 	rc_function_t *check_interrupt_function;
 	rc_function_t *send_function;
 	struct rc_send_arg_s *send_arg;
@@ -545,11 +530,5 @@ typedef struct rc_interface_s {
  * function protos
  */
 void rc_msg_mem_op(rc_mem_op_t *mop);
-
-#ifdef RC_STHEXT_REDO_STRICT_TYPES
-#define int Cannot_USE_int_because_it_is_ambiguous
-#define unsigned Cannot_USE_unsigned_because_it_is_ambiguous
-#undef RC_STHEXT_REDO_STRICT_TYPES
-#endif //RC_STHEXT_REDO_STRICT_TYPES
 
 #endif //RC_MSG_H

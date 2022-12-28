@@ -57,14 +57,11 @@ static int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src,
 static int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count);
 static int rc_kthread_mem_copy(rc_thread_t *tp, rc_mem_op_t *mop);
 static int rc_kthread_mem_user_copy(rc_thread_t *tp, rc_mem_op_t *mop);
-static int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id,
-			    rc_uint64_t src, rc_uint32_t src_id,
-			    rc_uint32_t byte_count);
-static int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
-			     rc_uint32_t byte_count);
-static rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap,
-				    rc_uint32_t starting_elem,
-				    rc_uint32_t offset, rc_thread_buf_t *buf);
+static int rc_sync_mem_copy(u64 dst, u32 dst_id, u64 src, u32 src_id,
+			    u32 byte_count);
+static int rc_sync_mem_clear(u64 dst, u32 dst_id, u32 byte_count);
+static rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap, u32 starting_elem,
+				    u32 offset, rc_thread_buf_t *buf);
 
 /* 2.6 added a new macro defined here for older kernel versions. */
 #ifndef for_each_online_cpu
@@ -221,11 +218,11 @@ int rc_kthread(void *rc_threadp)
 
 			mop->status = status;
 			/*
-       * Send a successfull response to the OSIC
-       * We just internally queue the response and
-       * let the tasklet send the response. Otherwise,
-       * we'll block on the OSIC lock.
-       */
+			 * Send a successfull response to the OSIC
+			 * We just internally queue the response and
+			 * let the tasklet send the response. Otherwise,
+			 * we'll block on the OSIC lock.
+			 */
 			spin_lock_irqsave(&state->mop_done.lock, irql);
 
 			if (state->mop_done.head == (rc_mem_op_t *)0) {
@@ -274,7 +271,7 @@ int rc_kthread(void *rc_threadp)
 	return 1;
 }
 
-static __inline__ int rc_sg_list_size(rc_sg_list_t *src)
+static inline int rc_sg_list_size(rc_sg_list_t *src)
 {
 	int i, size;
 
@@ -351,8 +348,8 @@ int rc_mem_clear_list(rc_sg_list_t *dst, int byte_count)
 					RC_DEBUG3,
 					"dst[%d]: dma_addr 0x%llx size 0x%x "
 					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
-					dst_idx, (rc_uint64_t)dst_dma_addr,
-					size, pfn << PAGE_SHIFT, dst_vaddr,
+					dst_idx, (u64)dst_dma_addr, size,
+					pfn << PAGE_SHIFT, dst_vaddr,
 					dst_offset, dst_mapped);
 			} else if ((dst->sg_mem_type & MEM_TYPE) ==
 				   RC_MEM_VADDR) {
@@ -484,7 +481,7 @@ int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 					"%s: src[%d]: dma_addr 0x%llx size 0x%x "
 					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
 					__FUNCTION__, src_idx,
-					(rc_uint64_t)src_dma_addr, size,
+					(u64)src_dma_addr, size,
 					pfn << PAGE_SHIFT, src_vaddr,
 					src_offset, src_mapped);
 			} else if ((src->sg_mem_type & MEM_TYPE) ==
@@ -526,7 +523,7 @@ int rc_mem_copy_list(rc_sg_list_t *dst, rc_sg_list_t *src, int byte_count)
 					"%s: dst[%d]: dma_addr 0x%llx size 0x%x "
 					"map_addr 0x%x vaddr %px offset 0x%x mapped 0x%x\n",
 					__FUNCTION__, dst_idx,
-					(rc_uint64_t)dst_dma_addr, size,
+					(u64)dst_dma_addr, size,
 					pfn << PAGE_SHIFT, dst_vaddr,
 					dst_offset, dst_mapped);
 			} else if ((dst->sg_mem_type & MEM_TYPE) ==
@@ -613,10 +610,9 @@ out:
  * based on the memory type.  Returns 1 if the address is good
  * or 0 if an error is found.
  */
-static rc_uint32_t rc_check_addr_one(rc_uint64_t addr, rc_uint32_t id,
-				     rc_uint32_t byte_count)
+static u32 rc_check_addr_one(u64 addr, u32 id, u32 byte_count)
 {
-	rc_uint32_t status = 0;
+	u32 status = 0;
 
 	id &= MEM_TYPE;
 
@@ -638,7 +634,7 @@ static rc_uint32_t rc_check_addr_one(rc_uint64_t addr, rc_uint32_t id,
 			return status;
 		}
 	} else { /* Physical address */
-		rc_uint64_t paddr = ((addr_elem_t)addr).phys_addr;
+		u64 paddr = ((addr_elem_t)addr).phys_addr;
 		unsigned long long pfn = paddr >> PAGE_SHIFT;
 		if (!pfn_valid(pfn)) {
 			rc_printk(
@@ -658,12 +654,12 @@ static rc_uint32_t rc_check_addr_one(rc_uint64_t addr, rc_uint32_t id,
  * addresses are reasonable based on the memory type. Returns
  * 1 if the list is good or 0 if an error is found.
  */
-static rc_uint32_t rc_check_addr_list(rc_addr_list_t *addr_list)
+static u32 rc_check_addr_list(rc_addr_list_t *addr_list)
 {
 	int i;
-	rc_uint16_t mem_type;
+	u16 mem_type;
 	rc_addr_list_t *ap;
-	rc_uint32_t status = 0;
+	u32 status = 0;
 
 	mem_type = addr_list->mem_id & MEM_TYPE;
 
@@ -715,7 +711,7 @@ static rc_uint32_t rc_check_addr_list(rc_addr_list_t *addr_list)
 	return status;
 }
 
-static int __inline__ rc_addr_list_elements(rc_addr_list_t *ap)
+static int inline rc_addr_list_elements(rc_addr_list_t *ap)
 {
 	int num_elem;
 
@@ -738,7 +734,7 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 	int cpu, i;
 	unsigned long irql;
 	rc_thread_t *tp;
-	rc_uint32_t status = 1;
+	u32 status = 1;
 
 	if (rc_msg_level >= RC_DEBUG) {
 		switch (mop->opcode) {
@@ -836,8 +832,8 @@ void rc_msg_mem_op(rc_mem_op_t *mop)
 		case RC_OP_MEM_USER_COPY:
 		default:
 			/*
-       * queue the morb to the correct cpu
-       */
+			 * queue the morb to the correct cpu
+			 */
 			preempt_disable();
 			cpu = smp_processor_id();
 			tp = &rc_thread[cpu];
@@ -917,8 +913,7 @@ int rc_mop_stats(char *buf, int buf_size)
  * to do the work.  Return 1 on success, 0 if the copy failed
  * for any reason.
  */
-int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id, rc_uint64_t src,
-		     rc_uint32_t src_id, rc_uint32_t byte_count)
+int rc_sync_mem_copy(u64 dst, u32 dst_id, u64 src, u32 src_id, u32 byte_count)
 {
 	rc_sg_list_t dst_sg, src_sg;
 
@@ -946,8 +941,7 @@ int rc_sync_mem_copy(rc_uint64_t dst, rc_uint32_t dst_id, rc_uint64_t src,
  * to do the work.  Return 1 on success, 0 if the copy failed
  * for any reason.
  */
-int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
-		      rc_uint32_t byte_count)
+int rc_sync_mem_clear(u64 dst, u32 dst_id, u32 byte_count)
 {
 	rc_sg_list_t dst_sg;
 
@@ -963,8 +957,8 @@ int rc_sync_mem_clear(rc_uint64_t dst, rc_uint32_t dst_id,
 }
 
 /* Flattens an address list and copies it to a scatter/gather list. */
-rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap, rc_uint32_t starting_elem,
-			     rc_uint32_t offset, rc_thread_buf_t *buf)
+rc_sg_list_t *rc_mem_sg_list(rc_addr_list_t *ap, u32 starting_elem, u32 offset,
+			     rc_thread_buf_t *buf)
 {
 	int i, indx = 0;
 	int elems = rc_addr_list_elements(ap);

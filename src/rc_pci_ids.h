@@ -104,19 +104,19 @@
 // AMD Client Bolton    SWL 10
 // AMD Server Riverside SWL 50
 #define RC_PD_DID_CBSR 0x7805
- // PCIe AMD Bristol RAID mode
+// PCIe AMD Bristol RAID mode
 #define RC_PD_DID_BRISTOL 0x7905
- // PCIe AMD Promontory Chipset
+// PCIe AMD Promontory Chipset
 #define RC_PD_DID_PROMONTORY 0x43BD
- // PCIe AMD Summit AM4 RAID mode
+// PCIe AMD Summit AM4 RAID mode
 #define RC_PD_DID_SUMMIT 0x7916
- // PCIe AMD Summit SP3 RAID mode
+// PCIe AMD Summit SP3 RAID mode
 #define RC_PD_DID_SUMMIT_SP3 0x7917
- // PCIe LSI1068 Adapater
+// PCIe LSI1068 Adapater
 #define RC_PD_DID_LSI1068E 0x0058
- // Motherboard LSI1068
+// Motherboard LSI1068
 #define RC_PD_DID_LSI1068 0x0059
- // MPT2 Falcon Adapter
+// MPT2 Falcon Adapter
 #define RC_PD_DID_FALCON 0x0072
 // DELL's LSI 1068e HBA (S300)
 #define RC_PD_DID_DELL1068E 0x0016

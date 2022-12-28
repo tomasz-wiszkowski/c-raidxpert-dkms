@@ -20,15 +20,18 @@
  *
  ****************************************************************************/
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/device.h>
+#include <linux/err.h>
 #include <linux/hdreg.h>
 #include <linux/interrupt.h>
 #include <linux/miscdevice.h>
+#include <linux/moduleparam.h>
 #include <linux/pci.h>
 #include <linux/pm_runtime.h>
 #include <linux/reboot.h>
 #include <linux/spinlock_types.h>
+#include <linux/stddef.h>
 #include <linux/sysctl.h>
 
 #include "build_number.h"
@@ -64,7 +67,7 @@ module_param(tag_q_depth, int, S_IRUGO);
 MODULE_PARM_DESC(tag_q_depth, "individual tagged command queue depth");
 
 // AHCI PRD limit is 224K or 448 sectors.
-static int max_xfer = 2048;
+static int max_xfer = 448;
 module_param(max_xfer, int, S_IRUGO);
 MODULE_PARM_DESC(max_xfer, "max sectors per transfer");
 
@@ -92,10 +95,9 @@ int rc_msg_level = RC_DEFAULT_ERR_LEVEL;
 rc_adapter_t *rc_dev[MAX_HBA];
 struct mutex ioctl_mutex;
 
-static unsigned adapter_count = 0; /* Number of adapters on the PCI bus,
-                                      Used to determine when the last
-                                      adapter has been initialized. */
-
+// Number of adapters on the PCI bus, Used to determine when the last
+// adapter has been initialized.
+static unsigned adapter_count = 0;
 extern struct miscdevice rccfg_api_dev;
 
 extern unsigned int RC_EnableDIPM;
@@ -171,11 +173,11 @@ void rc_send_msg(struct rc_send_arg_s *p_send_arg);
 
 struct rc_pci_bar {
 	struct {
-		rc_uint32_t low;
-		rc_uint32_t high;
+		u32 low;
+		u32 high;
 	} addr;
-	rc_uint32_t len;
-	rc_uint32_t flags;
+	u32 len;
+	u32 flags;
 };
 
 #ifdef RC_AHCI_SUPPORT
@@ -276,7 +278,7 @@ static Scsi_Host_Template driver_template = {
 	.can_queue = 1,
 	.this_id = -1,
 	.sg_tablesize = 1,
-	.max_sectors = 128, // 64K
+	.max_sectors = 4096, // 2M
 	.eh_abort_handler = rc_eh_abort_cmd,
 	.eh_device_reset_handler = rc_eh_dev_reset,
 	.eh_bus_reset_handler = rc_eh_bus_reset,
@@ -301,13 +303,12 @@ static struct efi *get_efi(void)
 static NVME_TRAP_DEVICE
 	NvmeTrapDeviceVar[MAX_HBA - 1]; // One HBA reserved for AHCI(/ATAPI)
 
-static efi_status_t RC_Unmap_VidDid(uint32_t Location, uint16_t *VID,
-				    uint16_t *DID)
+static efi_status_t RC_Unmap_VidDid(u32 Location, u16 *VID, u16 *DID)
 {
 	int32_t I;
 
 	for (I = 0; I < (MAX_HBA - 1); I++) {
-		uint32_t *p = (uint32_t *)&NvmeTrapDeviceVar[I].Bus;
+		u32 *p = (u32 *)&NvmeTrapDeviceVar[I].Bus;
 
 		if (Location == *p) {
 			if (VID)
@@ -365,8 +366,8 @@ static void rc_init_module(void)
 	}
 
 	/*
-   * enforce reasonable limits on module parameters
-   */
+	 * enforce reasonable limits on module parameters
+	 */
 	if (cmd_q_depth < 0)
 		cmd_q_depth = 1;
 	if (cmd_q_depth > RC_MAX_CMD_Q_DEPTH)
@@ -457,7 +458,7 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	int i;
 	struct rc_pci_bar bar;
 	// int			rc;
-	uint32_t Loc;
+	u32 Loc;
 
 	rc_printk(RC_DEBUG, "%s: Matched %.04x/%.04x/%.04x/%.04x\n",
 		  __FUNCTION__, id->vendor, id->device, id->subvendor,
@@ -508,8 +509,8 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 
 	/*
-   * make a copy of pci config space
-   */
+	 * make a copy of pci config space
+	 */
 	for (i = 0; i < (2 * PCI_CFG_SIZE);
 	     i++) { // Allow for extended pci config space
 		pci_read_config_byte(dev, i, &hw->pci_config_space[i]);
@@ -518,14 +519,14 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	Loc = ((((hw->pci_func & 0xFF) << 8) | (hw->pci_slot & 0xFF)) << 8) |
 	      (hw->pci_bus & 0xFF);
 
-	hw->orig_vendor_id = (uint16_t)0;
-	hw->orig_device_id = (uint16_t)0;
+	hw->orig_vendor_id = (u16)0;
+	hw->orig_device_id = (u16)0;
 
 	(void)RC_Unmap_VidDid(Loc, &hw->orig_vendor_id, &hw->orig_device_id);
 
 	/*
-   * set dma_mask to 64 bit capabilities but if that fails, try 32 bit
-   */
+	 * set dma_mask to 64 bit capabilities but if that fails, try 32 bit
+	 */
 	if (!dma_set_mask(&dev->dev, DMA_BIT_MASK(64)) &&
 	    !dma_set_coherent_mask(&dev->dev, DMA_BIT_MASK(64))) {
 		rc_printk(RC_NOTE, RC_DRIVER_NAME ": %s 64 bit DMA enabled\n",
@@ -544,8 +545,8 @@ static int rc_init_adapter(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 
 	/*
-   * map in the adapter MMIO space
-   */
+	 * map in the adapter MMIO space
+	 */
 	adapter->hardware.vaddr = (void *)ioremap(hw->phys_addr, hw->mem_len);
 	rc_printk(RC_ERROR, "%s(): hardware.vaddr = %px\n", __FUNCTION__,
 		  adapter->hardware.vaddr);
@@ -896,11 +897,12 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 				/* If NVMe device was not unbound, don't touch it. */
 				if (probe_dd->links.status ==
 				    DL_DEV_DRIVER_BOUND) {
-					rc_printk(RC_WARN,
-						  "%s: Driver for device %s already bound (%s)\n",
-						  __FUNCTION__,
-						  dev_name(probe_dd),
-						  probe_dev->driver->name);
+					rc_printk(
+						RC_WARN,
+						"%s: Driver for device %s already bound (%s)\n",
+						__FUNCTION__,
+						dev_name(probe_dd),
+						probe_dev->driver->name);
 					continue;
 				}
 
@@ -918,10 +920,10 @@ static int rcraid_probe_one(struct pci_dev *dev, const struct pci_device_id *id)
 	}
 
 	/*
-   * Finished with all of the adapters, start the core and
-   * initialize the one virtual scsi host.  The PCI device information for
-   * the last adapter initialized will be used for all arrays.
-   */
+	 * Finished with all of the adapters, start the core and
+	 * initialize the one virtual scsi host.  The PCI device information for
+	 * the last adapter initialized will be used for all arrays.
+	 */
 	if ((adapter_count && rc_adapter_count == rc_state.num_hba) ||
 	    (rc_adapter_count == 999 && adapter_count == rc_state.num_hba)) {
 		int err;
@@ -2008,14 +2010,14 @@ void rc_dump_scp(struct scsi_cmnd *scp)
 
 	case RC_WRITE_16:
 	case RC_READ_16:
-		lba16 = ((uint64_t)scb->scsi16.addr[0] << 56) |
-			((uint64_t)scb->scsi16.addr[1] << 48) |
-			((uint64_t)scb->scsi16.addr[2] << 40) |
-			((uint64_t)scb->scsi16.addr[3] << 32) |
-			((uint64_t)scb->scsi16.addr[4] << 24) |
-			((uint64_t)scb->scsi16.addr[5] << 16) |
-			((uint64_t)scb->scsi16.addr[6] << 8) |
-			(uint64_t)scb->scsi16.addr[7];
+		lba16 = ((u64)scb->scsi16.addr[0] << 56) |
+			((u64)scb->scsi16.addr[1] << 48) |
+			((u64)scb->scsi16.addr[2] << 40) |
+			((u64)scb->scsi16.addr[3] << 32) |
+			((u64)scb->scsi16.addr[4] << 24) |
+			((u64)scb->scsi16.addr[5] << 16) |
+			((u64)scb->scsi16.addr[6] << 8) |
+			(u64)scb->scsi16.addr[7];
 		sector_count = (scb->scsi16.len[0] << 8) | scb->scsi16.len[1];
 		rc_printk(RC_DEBUG, "lba: %lld len %d\n", lba16, sector_count);
 		break;
@@ -2151,9 +2153,9 @@ static int __init rcraid_init(void)
 	int err = 0;
 
 	/*
-   * make sure this is NULL, use this to check if the core
-   * finishes init and thus registers the config device
-   */
+	 * make sure this is NULL, use this to check if the core
+	 * finishes init and thus registers the config device
+	 */
 	rccfg_api_dev.this_device = NULL;
 	rc_init_module();
 

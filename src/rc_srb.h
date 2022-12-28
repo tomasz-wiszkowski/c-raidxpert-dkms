@@ -21,7 +21,7 @@
 #ifndef RC_SRB_H
 #define RC_SRB_H
 
-#include "rc_types_platform.h"
+#include <linux/types.h>
 
 #define RC_SG_MAX_ELEMENTS 33
 
@@ -124,7 +124,7 @@
 
 typedef union {
 	void *virt_addr;
-	rc_uint64_t phys_addr;
+	uint64_t phys_addr;
 } addr_elem_t;
 
 #define dma_paddr addr.phys_addr
@@ -136,36 +136,36 @@ typedef union {
 
 typedef struct RC_PACKED rc_sg_elem_s {
 	addr_elem_t addr;
-	rc_uint32_t size; /* set to machine natural size */
+	uint32_t size; /* set to machine natural size */
 } rc_sg_elem_t;
 
 typedef struct rc_sg_list_s {
-	rc_uint16_t sg_mem_type; /* Memory ID to pass to routines */
-	rc_uint16_t reserved;
-	rc_uint32_t sg_num_elem;
+	uint16_t sg_mem_type; /* Memory ID to pass to routines */
+	uint16_t reserved;
+	uint32_t sg_num_elem;
 	rc_sg_elem_t sg_elem[1]; /* variable size array */
 } rc_sg_list_t;
 
 typedef struct rc_srb_s {
 	struct rc_srb_s *next;
-	rc_uint32_t function;
-	rc_uint32_t status;
-	rc_uint32_t bus;
-	rc_uint32_t target;
-	rc_uint32_t lun;
-	rc_uint32_t flags;
-	rc_uint32_t seq_num;
-	rc_uint32_t data_len;
-	rc_uint32_t cdb_len;
+	uint32_t function;
+	uint32_t status;
+	uint32_t bus;
+	uint32_t target;
+	uint32_t lun;
+	uint32_t flags;
+	uint32_t seq_num;
+	uint32_t data_len;
+	uint32_t cdb_len;
 	void *cdb;
-	rc_uint32_t sense_len;
+	uint32_t sense_len;
 	void *sense;
 	rc_sg_list_t *sg_list;
 	void *scsi_context;
 	void *dev_private;
 	void (*callback)(struct rc_srb_s *);
-	rc_uint32_t timeout;
-	rc_uint32_t private32[1]; // This must be the last entry.
+	uint32_t timeout;
+	uint32_t private32[1]; // This must be the last entry.
 	// The sg_list (rc_sg_list_t) is allocated along with
 	// this structure and private32 is the pointer used to
 	// beginning of the sg_list.

@@ -52,6 +52,15 @@
 #include <linux/acpi.h>
 #include <linux/kthread.h>
 
+/*
+ * The code uses int/uint/unsigned int quite a lot, but also acknowledges that
+ * this is an ambiguous type.
+ * This does not matter much with function definitions, but may cause a major
+ * issue when used with structs.
+ * The least we can do is be sure that the sizeof(int) is what we'd expect.
+ */
+static_assert(sizeof(int) == 4, "Broken invariants; code guaranteed to fail.");
+
 /* Misc fixups for the 2.6 kernel */
 
 /* 2.6 kernel dosen't include a typedef */
@@ -63,7 +72,6 @@ typedef struct scsi_host_template Scsi_Host_Template;
 #define GET_IO_REQUEST_LOCK_IRQSAVE(i)
 #define PUT_IO_REQUEST_LOCK_IRQRESTORE(i)
 
-#include "rc_types_platform.h"
 #include "rc_srb.h"
 #include "rc_scsi.h"
 #include "rc_msg_platform.h"
@@ -102,7 +110,7 @@ void rc_printk(int flag, const char *fmt, ...)
 
 extern void rc_start_all_threads(void);
 extern void rc_stop_all_threads(void);
-extern void rc_event(rc_uint32_t type, rc_uint8_t bus, int update_mode);
+extern void rc_event(u32 type, u8 bus, int update_mode);
 extern int rc_event_init(void);
 extern void rc_event_shutdown(void);
 
@@ -179,12 +187,12 @@ typedef struct rc_thread_s {
 		 0xb1, 0x8d, 0x34)
 
 typedef struct {
-	uint16_t VendorId;
-	uint16_t DeviceId;
-	uint8_t Bus;
-	uint8_t Device;
-	uint8_t Function;
-	uint8_t _rsv0;
+	u16 VendorId;
+	u16 DeviceId;
+	u8 Bus;
+	u8 Device;
+	u8 Function;
+	u8 _rsv0;
 } NVME_TRAP_DEVICE;
 
 #define check_lock(sp)                                                        \

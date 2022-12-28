@@ -68,6 +68,17 @@ endif
 PWD    := $(shell pwd)
 
 #SB_ENABLED	:= $(shell /bin/mokutil --sb-state | cut -f2 -d\ )
+ifeq ($(shell [ -e /etc/lsb-release ] && echo 1 || echo 0), 1)
+  KERNEL_SRCS=/usr/src/linux-headers-$(KVERS)
+else
+  ifeq ($(shell test -e "/etc/redhat-release" && echo 1 || echo 0), 1)
+    KERNEL_SRCS=/usr/src/linux-headers-$(KVERS)
+  else
+    $(error Unable to locate linux kernel headers)
+  endif
+endif
+
+SIGN_TOOL=$(KERNEL_SRCS)/scripts/sign-file
 
 ifeq ($(shell [ -e /etc/lsb-release ] && echo 1 || echo 0), 1)
     SIGN_TOOL=/usr/src/linux-headers-$(KVERS)/scripts/sign-file
@@ -90,12 +101,19 @@ endif
 # and/or modifying the initramfs -- all necessary to install rcraid.ko
 #
 # If running as root, check if local signing certificate exists. If not,
-# create one. 
+# create one.
 #
 # Sign the module using the local certificate.
 #
 
 all: bbanner
+# Create a symlink to kernel headers/sources.
+# This permits autocompletion and static analysis tools to work.
+# The compile_flags.txt is a "compile_commands.json" that applies to all
+# translation units.
+# https://clang.llvm.org/docs/JSONCompilationDatabase.html
+	@rm -f kernel
+	@ln -s $(KERNEL_SRCS) kernel
 	$(MAKE) -C $(KDIR) M=$(shell pwd) modules
 #ifeq ($(shell /bin/mokutil --sb-state | cut -f2 -d\ ), enabled)
 #ifneq ($(shell id -u), 0)
@@ -163,6 +181,7 @@ clean:
 	@rm -f rcraid.mod.c Module.symvers Modules.symvers
 	@rm -rf .tmp_versions Module.markers modules.order
 	@ln -s rcblob.x86_64 rcblob.x86_64.o
+	@rm -f kernel
 
 install: ibanner
 	@if [ -e /etc/redhat-release ]; then                             \
