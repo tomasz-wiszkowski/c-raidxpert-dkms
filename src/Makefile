@@ -115,6 +115,8 @@ all: bbanner
 	@rm -f kernel
 	@ln -s $(KERNEL_SRCS) kernel
 	$(MAKE) -C $(KDIR) M=$(shell pwd) modules
+
+certsign: all
 #ifeq ($(shell /bin/mokutil --sb-state | cut -f2 -d\ ), enabled)
 #ifneq ($(shell id -u), 0)
 #	@echo "#"

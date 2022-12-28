@@ -1,0 +1,9 @@
+PACKAGE_NAME="rcraid"
+PACKAGE_VERSION=#MODULE_VERSION#
+MAKE="make -C ./src KVERS=$kernelver"
+CLEAN="make -C ./src clean"
+BUILT_MODULE_NAME="rcraid"
+BUILT_MODULE_LOCATION="./src"
+DEST_MODULE_LOCATION="/kernel/drivers/scsi"
+AUTOINSTALL=yes
+REMAKE_INITRD=yes

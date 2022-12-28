@@ -1,0 +1,22 @@
+Source: rcraid
+Section: contrib/kernel
+Priority: optional
+Maintainer: Tomasz Wiszkowski <tomasz.wiszkowski@gmail.com>
+Build-Depends: debhelper-compat (= 13), dkms
+Vcs-Git: https://github.com/tomasz-wiszkowski/c-raidxpert-linux6
+Standards-Version: 9.3.0
+XS-Autobuild: yes
+
+
+Package: rcraid-dkms
+Section: contrib/kernel
+Architecture: linux-amd64
+Multi-Arch: no
+Depends:
+ ${misc:Depends},
+ linux-headers-generic,
+ dkms
+Description: DKMS module for AMD RAIDXpert2 (rcraid)
+ .
+
+

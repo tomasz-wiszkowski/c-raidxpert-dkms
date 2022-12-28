@@ -53,6 +53,17 @@ This requires you to blacklist both `ahci` and `nvme` modules and placing the
 Note that each time the kernel is updated, you will have to redo this process
 again, or your system will just be inaccessible.
 
+Simply build and install the package:
+
+```
+dpkg-buildpackage -b -uc -us
+sudo dpkg -i ../rcraid-dkms-*.deb
+```
+
+NOTE: This is experimental. This may not work well. Be prepared that this may
+render your system non-bootable. Have a way to revert. Normally this means
+booting unmodified kernel, or perhaps the previously installed kernel.
+
 ### On demand.
 
 Requires you to blacklist just the `ahci` module and manually unbind NVMe
