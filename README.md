@@ -60,9 +60,15 @@ dpkg-buildpackage -b -uc -us
 sudo dpkg -i ../rcraid-dkms-*.deb
 ```
 
-NOTE: This is experimental. This may not work well. Be prepared that this may
-render your system non-bootable. Have a way to revert. Normally this means
-booting unmodified kernel, or perhaps the previously installed kernel.
+NOTE: While this seems to work, it is highly experimental.
+
+Be prepared that this may render your system non-bootable.
+Have a way to revert. Normally this means booting unmodified kernel, or perhaps
+the previously installed kernel.
+
+One thing I've noticed is that this makes `cryptswap` fail to setup. Consider
+disabling the `cryptswap` entry in your `/etc/fstab` file ahead of rebooting
+your system.
 
 ### On demand.
 

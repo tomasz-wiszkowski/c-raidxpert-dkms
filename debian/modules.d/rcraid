@@ -1,3 +1,0 @@
-rcraid 
-blacklist ahci
-blacklist nvme

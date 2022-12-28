@@ -10,6 +10,6 @@ VERSION := $(shell dpkg-parsechangelog |\
 override_dh_install:
 	mkdir -p debian/tmp/usr/src/rcraid-$(VERSION)
 	dh_install -prcraid-dkms src/ usr/src/rcraid-$(VERSION)
-	dh_install -prcraid-dkms debian/modules.d usr/share/initramfs-tools/
+	dh_install -prcraid-dkms debian/modprobe.d usr/lib
 	dh_dkms -V $(VERSION)
 	dh_install
