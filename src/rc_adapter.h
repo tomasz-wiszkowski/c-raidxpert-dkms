@@ -30,7 +30,13 @@
 #define _RC_ADAPTER_
 
 #include <linux/irqreturn.h>
+#include <linux/pci.h>
+#include <linux/spinlock_types.h>
+#include <linux/semaphore.h>
+#include <linux/timer.h>
 #include <linux/types.h>
+#include "rc_msg_platform.h"
+#include "rc_srb.h"
 
 struct rc_adapter_s;
 typedef irqreturn_t (*rc_isr_func_t)(int irq, void *arg, struct pt_regs *regs);
@@ -50,28 +56,28 @@ typedef int (*rc_adapter_func_t)(struct rc_adapter_s *adapter);
 
 #define PCI_CFG_SIZE 256
 typedef struct rc_hw_info {
-	int pci_bus;
-	int pci_slot;
-	int pci_func;
-	int irq;
-	int ismsi;
+	u32 pci_bus;
+	u32 pci_slot;
+	u32 pci_func;
+	u32 irq;
+	u32 ismsi;
 	struct msix_entry msix_ent;
 	void *vaddr; // device memory map address
 	// Need to deal with 64bit paddrs.
 	// These types come from linux/ioport.h
 	unsigned long phys_addr; // 32 bit bus address
-	int mem_len; // len of memory map
-	int adapter_number;
+	u32 mem_len; // len of memory map
+	u32 adapter_number;
 	u16 orig_vendor_id;
 	u16 orig_device_id;
-	unsigned char pci_config_space
+	u8 pci_config_space
 		[2 * PCI_CFG_SIZE]; // Allow for extended pci config space
 } rc_hw_info_t;
 
 typedef struct rc_mem_desc_s {
 	void *vaddr;
 	dma_addr_t dma_address;
-	unsigned int size;
+	u32 size;
 } rc_mem_desc_t;
 
 struct DmaMemoryNode {
@@ -85,7 +91,7 @@ struct DmaMemoryNode {
 typedef struct rc_adapter_s {
 	struct rc_version *version;
 	char *name;
-	int instance;
+	u32 instance;
 	rc_hw_info_t hardware;
 	struct pci_dev *pdev;
 	void *mem; // memory allocated for the adapter
@@ -130,15 +136,15 @@ typedef struct rc_stats_s {
 
 /* Global driver info */
 typedef struct rc_softstate {
-	int state;
+	u32 state;
 	struct Scsi_Host *host_ptr;
-	int num_hba;
+	u32 num_hba;
 	/*
 	 * private resources used by the OSIC
 	 */
-	int memsize_per_controller;
-	int memsize_per_srb;
-	int timer_interval; /* in clock ticks */
+	u32 memsize_per_controller;
+	u32 memsize_per_srb;
+	u32 timer_interval; /* in clock ticks */
 	u32 virtual_memory_size;
 	void *virtual_memory;
 	u32 cache_memory_size;
@@ -146,7 +152,7 @@ typedef struct rc_softstate {
 	struct semaphore init_sema;
 	struct timer_list timer;
 	spinlock_t osic_lock;
-	int osic_locked;
+	u32 osic_locked;
 	char *osic_lock_holder;
 	struct timer_list rc_timeout;
 	struct semaphore rc_timeout_sema;
@@ -159,7 +165,7 @@ typedef struct rc_softstate {
 	struct tasklet_struct intr_tasklet;
 
 	struct delayed_work resume_work;
-	int is_suspended;
+	u32 is_suspended;
 	u32 adapter_is_suspended;
 
 	atomic_t intr_pending;
@@ -196,10 +202,10 @@ typedef struct rc_version {
 	char *device_name;
 	char *vendor;
 	char *model;
-	int num_ports;
-	int window_size;
-	int which_bar;
-	int swl_type;
+	u32 num_ports;
+	u32 window_size;
+	u32 which_bar;
+	u32 swl_type;
 } rc_version_t;
 
 #define rc_interrupt_adapter(adapter) \
