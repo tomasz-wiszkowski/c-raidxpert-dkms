@@ -88,7 +88,7 @@ typedef enum {
 	RC_TAIL
 } rc_print_lvl_t;
 
-#define RC_DEFAULT_ERR_LEVEL RC_INFO
+#define RC_DEFAULT_ERR_LEVEL RC_WARN
 
 void rc_printk(int flag, const char *fmt, ...)
 	__attribute__((format(printf, 2, 3)));

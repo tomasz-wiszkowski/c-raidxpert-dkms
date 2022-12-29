@@ -39,25 +39,24 @@ remain licensed the same way it was when it was released by AMD.
 Follow regular linux development process, or go through the official building
 details included by AMD (I've left them here).
 
-Once you get everything installed, just call `make -C src`,
+Once you get everything installed, just call `make -C src`.
+To build the debian package, execute:
 
-## Loading
+```sh
+dpkg-buildpackage -b -uc -us
+# produces rcraid-dkms-*.deb in the parent folder
+```
+
+## Installing
 
 To make this work, you have to either
 
 ### System boot.
 
-This requires you to blacklist both `ahci` and `nvme` modules and placing the
-`rcraid.ko` alongside the modules. This part is documented by AMD already.
+Simply download (see downloads page) and install the package:
 
-Note that each time the kernel is updated, you will have to redo this process
-again, or your system will just be inaccessible.
-
-Simply build and install the package:
-
-```
-dpkg-buildpackage -b -uc -us
-sudo dpkg -i ../rcraid-dkms-*.deb
+```sh
+sudo dpkg -i rcraid-dkms-*.deb
 ```
 
 NOTE: While this seems to work, it is highly experimental.
@@ -66,11 +65,7 @@ Be prepared that this may render your system non-bootable.
 Have a way to revert. Normally this means booting unmodified kernel, or perhaps
 the previously installed kernel.
 
-One thing I've noticed is that this makes `cryptswap` fail to setup. Consider
-disabling the `cryptswap` entry in your `/etc/fstab` file ahead of rebooting
-your system.
-
-### On demand.
+### On demand
 
 Requires you to blacklist just the `ahci` module and manually unbind NVMe
 drives that are part of your RAID setup.
@@ -78,7 +73,7 @@ drives that are part of your RAID setup.
 To do the latter - this script will match PCI devices and their `/dev/nvme*`
 nodes:
 
-```
+```sh
 cd /sys/bus/pci/drivers/nvme
 for f in 0000:*; do echo $f is $(ls $f/nvme); done
 ```
@@ -95,7 +90,7 @@ e.g.:
 Next, for each of these nodes that you know that are part of the RAIDXpert
 setup, unbind them:
 
-```
+```sh
 cd /sys/bus/pci/drivers/nvme
 echo 0000:44:00.0 | sudo tee unbind
 echo 0000:4c:00.0 | sudo tee unbind
@@ -105,10 +100,20 @@ Note: `/dev/nvme2*` and `/dev/nvme3*` will become instantly unavailable.
 
 Finally, load the module:
 
-```
+```sh
 sudo insmod rcraid.ko
 ```
 
 A simple script can go a long way here.
 
-Good luck.
+## **Known Issues** (no, seriously, please read)
+* **`cryptswap`** will likely fail to setup on boot. Consider 
+  disabling the `cryptswap` entry in your `/etc/fstab` file ahead of rebooting 
+  your system (especially if you installed the `rcraid-dkms.deb` package).
+* **`TRIM`** does not appear to be supported. When formatting new partitions,
+   use `nodiscard`, e.g.
+  ```sh
+  sudo mkfs.ext4 /dev/sdX1 -E nodiscard
+  ```
+  Otherwise mkfs will fail to complete and, well, your system will hang.
+

@@ -1,0 +1,63 @@
+#!/bin/zsh
+
+TESTFILES=(
+  ext4-mdadm+nvme.out
+  ext4-mdadm+rcraid.out
+  ext4-raidxpert.out
+  ntfs-raidxpert.out
+)
+
+# Variants is a hash map.
+# Key is the test type, value is the column.
+declare -A VARIANTS
+VARIANTS=(
+  write 3
+  rewrite 4
+  read 5
+  reread 6
+  randread 7
+  randwrite 8
+  bkwdread 9
+  recrewrite 10
+  strideread 11
+  fwrite 12
+  frewrite 13
+  fread 14
+  freread 15
+)
+
+# Iterate over all testfiles.
+for f in $TESTFILES; do
+  # Iterate over all test variants; $k is the key (read, write, reread...)
+  for k in ${(k)VARIANTS}; do
+    # $v is the column number.
+    v=${VARIANTS[$k]}
+
+    # Create target directory. Don't fail if exists.
+    OUT="${f%%.out}/$k"
+    mkdir -p "$OUT"
+
+    # Dump the 3D data for gnu3d.dem chart.
+    cat $f | awk '$1 ~ /^[0-9]+/ { print  $1 " " $2 " " $'$v'  }' > "$OUT/gnu3d.dat"
+  done
+done
+
+#
+# Next, extract data for 2D graphs.
+#
+# These are the chunk sizes we will extract.
+SIZES=( 4 64 256 2048 )
+
+# These are the files we will process.
+FILES=( **/gnu3d.dat )
+
+for f in $FILES; do
+  for s in $SIZES; do
+    OUT="$(dirname $f)/$s.dat"
+    # Find lines where second column matches the size and print both
+    # the first column (file size) and the last one (KBytes/s).
+    touch "$OUT"
+    cat "$f" | sed -n "s/\(^[0-9]\+\) $s \(.*\)$/\1 \2/p" > "$OUT"
+  done
+done
+

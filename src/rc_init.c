@@ -1931,6 +1931,9 @@ void rc_printk(int flag, const char *fmt, ...)
 	static int newline_in_last_fmt = 1;
 	va_list args;
 
+	if (flag > rc_msg_level)
+		return;
+
 	va_start(args, fmt);
 	(void)vsnprintf(rc_print_buf, sizeof(rc_print_buf), fmt, args);
 	va_end(args);
@@ -1939,9 +1942,6 @@ void rc_printk(int flag, const char *fmt, ...)
 		panic(rc_print_buf);
 		return;
 	}
-
-	if (flag > rc_msg_level)
-		return;
 
 	flag = flag > 7 ? 7 : flag;
 
